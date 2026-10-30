@@ -36,6 +36,7 @@ uint8_t* tcpPayload = &TcpTransmitPacket[20];
 uint16_t tcp_rxdataLen=0;
 uint8_t tcp_rxdata[TCP_RX_DATA_LEN]; /* dedicated receive buffer for TCP data with correct ports */
 static struct V2gtpRx tcpRx; /* collects one V2GTP message in tcp_rxdata, possibly from several segments */
+static uint8_t tcpRxError;   /* the receive path stopped on an invalid V2GTP header (see tcp_takeReceiveError) */
 
 static uint8_t tcpState = TCP_STATE_CLOSED;
 
@@ -52,6 +53,15 @@ static void tcp_sendAck(void);
 static void tcp_sendFirstAck(void);
 
 /*** functions *********************************************************************/
+uint8_t tcp_takeReceiveError(void) {
+   /* Reports a receive error once. The flag is cleared, the receive path itself stays stopped until the next
+      connection. */
+   uint8_t e = tcpRxError;
+   if (e)
+      tcpRxError = 2;
+   return e == 1;
+}
+
 uint32_t tcp_getTotalNumberOfRetries(void) {
   return tcp_debug_totalRetryCounter;
 }
@@ -105,6 +115,7 @@ void evaluateTcpPacket(void)
          TcpAckNr = remoteSeqNr+1; /* The ACK number of our next transmit packet is one more than the received seq number. */
          v2gtpRx_start(&tcpRx, tcp_rxdata, TCP_RX_DATA_LEN, TcpAckNr);
          tcp_rxdataLen = 0;
+         tcpRxError = 0;
          setCheckpoint(303);
          tcpState = TCP_STATE_ESTABLISHED;
          tcp_sendFirstAck();
@@ -126,8 +137,8 @@ void evaluateTcpPacket(void)
    if (tmpPayloadLen>0)
    {
       /* This is a data transfer packet. The payload starts after the TCP header, whose length (with any options) is
-         in its data offset field. Take only what is really in the receive buffer: qca7000.cpp cuts a frame longer
-         than the buffer, and then only the part received is acknowledged, so the charger sends the rest again. */
+         in its data offset field. qca7000.cpp passes on only whole Ethernet frames; still, take no more than the
+         frame holds, in case the IP length says otherwise. */
       payloadOffset = 54 + hdrLen;
       available = (myethreceivebufferLen > payloadOffset) ? (myethreceivebufferLen - payloadOffset) : 0;
       if (tmpPayloadLen > available)
@@ -141,26 +152,32 @@ void evaluateTcpPacket(void)
       the overwritten myethreceivebuffer would lead to not seeing the tcp_rxdata anymore. The V2GTP message may come
       in several segments; tcp_rxdataLen is set when it is complete. */
       completeLen = 0;
-      rx = v2gtpRx_segment(&tcpRx, remoteSeqNr, &myethreceivebuffer[payloadOffset], tmpPayloadLen, &completeLen);
       connMgr_TcpOk();
-      if (rx & V2GTPRX_STARTED)
+      if (tcp_rxdataLen > 0)
       {
-         if (tcp_rxdataLen > 0)
-            addToTrace(MOD_TCP, "[TCP] The previous message was not processed yet. It is dropped.");
-         tcp_rxdataLen = 0;
+         /* The application hasn't taken the last message yet. Don't overwrite it: take nothing, and the ACK below
+            makes the charger send the segment again later. */
+         addToTrace(MOD_TCP, "[TCP] The previous message was not processed yet. Segment not taken.");
       }
-      if (rx & V2GTPRX_TOO_LARGE)
-         addToTrace(MOD_TCP, "[TCP] V2GTP message larger than the receive buffer. It is dropped.");
-      if (rx & V2GTPRX_GAP)
-         addToTrace(MOD_TCP, "[TCP] Segment out of order. Not taken.");
-      if (rx & V2GTPRX_EXTRA)
-         addToTrace(MOD_TCP, "[TCP] Data after the end of the V2GTP message. Dropped.");
-      if (rx & V2GTPRX_COMPLETE)
+      else
       {
-         tcp_rxdataLen = completeLen; /* provide the received message to the application */
-         addToTrace(MOD_TCPTRAFFIC, "Data received: ", tcp_rxdata, tcp_rxdataLen);
+         rx = v2gtpRx_segment(&tcpRx, remoteSeqNr, &myethreceivebuffer[payloadOffset], tmpPayloadLen, &completeLen);
+         if ((rx & V2GTPRX_ERROR) && !tcpRxError)
+         {
+            addToTrace(MOD_TCP, "[TCP] Invalid V2GTP header, or a message larger than the receive buffer. Receiving stopped.");
+            tcpRxError = 1;
+         }
+         if (rx & V2GTPRX_GAP)
+            addToTrace(MOD_TCP, "[TCP] Segment out of order. Not taken.");
+         if (rx & V2GTPRX_EXTRA)
+            addToTrace(MOD_TCP, "[TCP] Data after the end of the V2GTP message. Not taken yet.");
+         if (rx & V2GTPRX_COMPLETE)
+         {
+            tcp_rxdataLen = completeLen; /* provide the received message to the application */
+            addToTrace(MOD_TCPTRAFFIC, "Data received: ", tcp_rxdata, tcp_rxdataLen);
+         }
       }
-      TcpAckNr = tcpRx.nextSeq; /* acknowledges everything received in sequence so far */
+      TcpAckNr = tcpRx.nextSeq; /* acknowledges everything taken in sequence so far */
       tcp_sendAck();
    }
    if (flags & TCP_FLAG_ACK)

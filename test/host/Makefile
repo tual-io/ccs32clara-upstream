@@ -19,16 +19,20 @@ all: run
 v2gtp_test: v2gtp_test.cpp ../../ccs/v2gtp.cpp ../../ccs/v2gtp.h
 	$(CXX) $(CXXFLAGS) -o $@ v2gtp_test.cpp ../../ccs/v2gtp.cpp
 
+qcaframe_test: qcaframe_test.cpp ../../ccs/qcaframe.cpp ../../ccs/qcaframe.h
+	$(CXX) $(CXXFLAGS) -o $@ qcaframe_test.cpp ../../ccs/qcaframe.cpp
+
 apphand_test: apphand_test.cpp $(APPHAND_C) ../../exi/appHandRequest.h
 	$(CC) $(CFLAGS) -c $(APPHAND_C)
 	$(CXX) $(CXXFLAGS) -o $@ apphand_test.cpp *.o
 	rm -f *.o
 
-run: v2gtp_test apphand_test
+run: v2gtp_test qcaframe_test apphand_test
 	./v2gtp_test
+	./qcaframe_test
 	./apphand_test
 
 clean:
-	rm -f v2gtp_test apphand_test *.o
+	rm -f v2gtp_test qcaframe_test apphand_test *.o
 
 .PHONY: all run clean

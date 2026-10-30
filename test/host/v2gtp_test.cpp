@@ -92,7 +92,8 @@ static void testOrder(void)
    CHECK(memcmp(buf, m.data(), m.size()) == 0);
 }
 
-/* A message larger than the buffer is dropped to its end; the next one is fine. */
+/* A message larger than the buffer stops the receive path: nothing more is taken or acknowledged until it starts
+   again (the next connection). */
 static void testTooLarge(void)
 {
    uint8_t buf[200];
@@ -100,40 +101,70 @@ static void testTooLarge(void)
    uint16_t len = 0;
    std::vector<uint8_t> big = message(500);
    std::vector<uint8_t> next = message(50, 9);
-   uint8_t all = 0;
 
    v2gtpRx_start(&rx, buf, sizeof(buf), 1);
-   for (size_t pos = 0; pos < big.size(); pos += 128)
-   {
-      uint16_t n = (uint16_t)(big.size() - pos < 128 ? big.size() - pos : 128);
-      all |= v2gtpRx_segment(&rx, 1 + (uint32_t)pos, &big[pos], n, &len);
-   }
-   CHECK(all == (V2GTPRX_STARTED | V2GTPRX_TOO_LARGE));
-   CHECK(rx.nextSeq == 1 + big.size()); /* all acknowledged */
-   CHECK(v2gtpRx_segment(&rx, rx.nextSeq, next.data(), (uint16_t)next.size(), &len) ==
-         (V2GTPRX_STARTED | V2GTPRX_COMPLETE));
-   CHECK((size_t)len == next.size());
-   CHECK(memcmp(buf, next.data(), next.size()) == 0);
+   CHECK(v2gtpRx_segment(&rx, 1, &big[0], 128, &len) == (V2GTPRX_STARTED | V2GTPRX_ERROR));
+   CHECK(rx.nextSeq == 1); /* the header is not acknowledged */
+   CHECK(rx.isFailed);
+   CHECK(v2gtpRx_segment(&rx, 1, &big[0], 128, &len) == V2GTPRX_ERROR);
+   CHECK(v2gtpRx_segment(&rx, 1, next.data(), (uint16_t)next.size(), &len) == V2GTPRX_ERROR);
+   CHECK(rx.nextSeq == 1);
+   CHECK(len == 0);
+
+   /* the largest message that fits is fine */
+   std::vector<uint8_t> fits = message(sizeof(buf) - V2GTP_HEADER_LEN);
+   v2gtpRx_start(&rx, buf, sizeof(buf), 1);
+   CHECK(v2gtpRx_segment(&rx, 1, fits.data(), (uint16_t)fits.size(), &len) == (V2GTPRX_STARTED | V2GTPRX_COMPLETE));
+   CHECK((size_t)len == fits.size());
 }
 
-/* Data after the end of a message in the same segment is dropped, the message kept. */
+/* A nonsense length (which would wrap when the header is added) is an error too, also with the header split. */
+static void testNonsenseLength(void)
+{
+   uint8_t buf[1032];
+   struct V2gtpRx rx;
+   uint16_t len = 0;
+   std::vector<uint8_t> m = message(0);
+   m[4] = 0xFF;
+   m[5] = 0xFF;
+   m[6] = 0xFF;
+   m[7] = 0xFC;
+
+   v2gtpRx_start(&rx, buf, sizeof(buf), 100);
+   CHECK(v2gtpRx_segment(&rx, 100, &m[0], 5, &len) == V2GTPRX_STARTED);
+   CHECK(v2gtpRx_segment(&rx, 105, &m[5], 3, &len) == V2GTPRX_ERROR);
+   CHECK(rx.nextSeq == 105);
+   CHECK(len == 0);
+}
+
+/* Data after the end of a message in the same segment (here the next message) is not taken and not acknowledged.
+   When the sender repeats it, it is taken as the next message. */
 static void testExtra(void)
 {
    uint8_t buf[1032];
    struct V2gtpRx rx;
    uint16_t len = 0;
-   std::vector<uint8_t> m = message(20);
-   std::vector<uint8_t> two = m;
-   two.insert(two.end(), m.begin(), m.end());
+   std::vector<uint8_t> a = message(20, 1);
+   std::vector<uint8_t> b = message(30, 2);
+   std::vector<uint8_t> two = a;
+   two.insert(two.end(), b.begin(), b.end());
 
    v2gtpRx_start(&rx, buf, sizeof(buf), 0);
    CHECK(v2gtpRx_segment(&rx, 0, two.data(), (uint16_t)two.size(), &len) ==
          (V2GTPRX_STARTED | V2GTPRX_COMPLETE | V2GTPRX_EXTRA));
-   CHECK((size_t)len == m.size());
+   CHECK((size_t)len == a.size());
+   CHECK(memcmp(buf, a.data(), a.size()) == 0);
+   CHECK(rx.nextSeq == a.size()); /* only message a is acknowledged */
+
+   /* the sender repeats from the ACK number: b on its own, or the whole segment again */
+   len = 0;
+   CHECK(v2gtpRx_segment(&rx, 0, two.data(), (uint16_t)two.size(), &len) == (V2GTPRX_STARTED | V2GTPRX_COMPLETE));
+   CHECK((size_t)len == b.size());
+   CHECK(memcmp(buf, b.data(), b.size()) == 0);
    CHECK(rx.nextSeq == two.size());
 }
 
-/* Not a V2GTP header: passed on as it is (bounded by the buffer). */
+/* Not a V2GTP header: an error, nothing acknowledged */
 static void testBadHeader(void)
 {
    uint8_t buf[64];
@@ -142,10 +173,9 @@ static void testBadHeader(void)
    std::vector<uint8_t> junk(100, 0x55);
 
    v2gtpRx_start(&rx, buf, sizeof(buf), 0);
-   CHECK(v2gtpRx_segment(&rx, 0, junk.data(), (uint16_t)junk.size(), &len) ==
-         (V2GTPRX_STARTED | V2GTPRX_COMPLETE | V2GTPRX_BAD_HEADER));
-   CHECK((size_t)len == sizeof(buf));
-   CHECK(rx.nextSeq == junk.size());
+   CHECK(v2gtpRx_segment(&rx, 0, junk.data(), (uint16_t)junk.size(), &len) == (V2GTPRX_STARTED | V2GTPRX_ERROR));
+   CHECK(len == 0);
+   CHECK(rx.nextSeq == 0);
 }
 
 static void testSdp(void)
@@ -185,6 +215,7 @@ int main(void)
    testSplit();
    testOrder();
    testTooLarge();
+   testNonsenseLength();
    testExtra();
    testBadHeader();
    testSdp();

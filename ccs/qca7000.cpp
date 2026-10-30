@@ -12,6 +12,7 @@
 
 
 #include "ccs32_globals.h"
+#include "qcaframe.h"
 
 static uint16_t mySpiDataSize;
 static uint8_t mySpiRxBuffer[MY_SPI_TX_RX_BUFFER_SIZE];
@@ -138,99 +139,60 @@ static uint16_t spiQCA7000DemoReadRDBUF_BYTE_AVA(void) {
 }
 
 
-void QCA7000checkRxDataAndDistribute(int16_t availbytes) {
-  uint16_t  L1, L2;
-  uint8_t *p;
-  uint8_t  blDone = 0;
-  uint8_t counterOfEthFramesInSpiFrame;
-  counterOfEthFramesInSpiFrame = 0;
-  p= mySpiRxBuffer;
-  while (!blDone) {  /* The SPI receive buffer may contain multiple Ethernet frames. Run through all. */
-      /* the SpiRxBuffer contains more than the ethernet frame:
-        4 byte length
-        4 byte start of frame AA AA AA AA
-        2 byte frame length, little endian
-        2 byte reserved 00 00
-        payload
-        2 byte End of frame, 55 55 */
-      /* The higher 2 bytes of the len are assumed to be 0. */
-      /* The lower two bytes of the "outer" len, big endian: */
-      L1 = p[2]; L1<<=8; L1+=p[3];
-      /* The "inner" len, little endian. */
-      L2 = p[9]; L2<<=8; L2+=p[8];
-      if ((p[4]==0xAA) && (p[5]==0xAA) && (p[6]==0xAA) && (p[7]==0xAA)
-            && (L2+10==L1)) {
-          counterOfEthFramesInSpiFrame++;
-          /* The start of frame and the two length informations are plausible. Copy the payload to the eth receive buffer. */
-          myethreceivebufferLen = L2;
-          /* but limit the length, to avoid buffer overflow */
-          if (myethreceivebufferLen > MY_ETH_RECEIVE_BUFFER_LEN) {
-              myethreceivebufferLen = MY_ETH_RECEIVE_BUFFER_LEN;
-              debugCounter_cutted_myethreceivebufferLen++;
-          }
-          memcpy(myethreceivebuffer, &p[12], myethreceivebufferLen);
-          /* We received an ethernet package. Determine its type, and dispatch it to the related handler. */
-          uint16_t etherType = getEtherType(myethreceivebuffer);
-          #ifdef VERBOSE_QCA7000
-            showAsHex(myethreceivebuffer, myethreceivebufferLen, "eth.myreceivebuffer");
-          #endif
-          if (etherType == 0x88E1) { /* it is a HomePlug message */
-            //Serial.println("Its a HomePlug message.");
-            addToTrace(MOD_QCA, "Its a HomePlug message.");
-            //canbus_addToBinaryLogging(0xAA5A, myethreceivebuffer, myethreceivebufferLen);
-            /* we log the ethernet traffic, but we stop logging it, when we entered the
-               charging loop, to avoid spamming the log */
-            if (checkpointNumber<700) {
-              addToTrace(MOD_ETHTRAFFIC, "ETH rx HP:", myethreceivebuffer, myethreceivebufferLen);
-            } else {
-              /* We are in the charging loop or beyond. Do not log the ethernet traffic. */
-            }
-            evaluateReceivedHomeplugPacket();
-          } else if (etherType == 0x86dd) { /* it is an IPv6 frame */
-            addToTrace(MOD_QCA, "Its a IPv6 message.");
-            //canbus_addToBinaryLogging(0xAA5A, myethreceivebuffer, myethreceivebufferLen);
-            /* we log the ethernet traffic, but we stop logging it, when we entered the
-               charging loop, to avoid spamming the log */
-            if (checkpointNumber<700) {
-              addToTrace(MOD_ETHTRAFFIC, "ETH rx IP:", myethreceivebuffer, myethreceivebufferLen);
-            } else {
-              /* We are in the charging loop or beyond. Do not log the ethernet traffic. */
-            }
-            ipv6_evaluateReceivedPacket();
-          } else {
-            //Serial.println("Other message.");
-            /* We do not log other messages, to avoid too much logging traffic. If needed, enable the logging,
-            by commenting-in this: addToTrace(MOD_ETHTRAFFIC, "ETH rx other:", myethreceivebuffer, myethreceivebufferLen);
-            */
-          }
-          
-          availbytes = availbytes - L1 - 4;
-          p+= L1+4;
-          //Serial.println("Avail after first run:" + String(availbytes));
-          if (availbytes>10) { /*
-            Serial.println("There is more data.");
-            Serial.print(String(p[0], HEX) + " ");
-            Serial.print(String(p[1], HEX) + " ");
-            Serial.print(String(p[2], HEX) + " ");
-            Serial.print(String(p[3], HEX) + " ");
-            Serial.print(String(p[4], HEX) + " ");
-            Serial.print(String(p[5], HEX) + " ");
-            Serial.print(String(p[6], HEX) + " ");
-            Serial.print(String(p[7], HEX) + " ");
-            Serial.print(String(p[8], HEX) + " ");
-            Serial.print(String(p[9], HEX) + " ");
-            */
-          } else {
-            blDone=1;
-          }
+static void distributeEthFrame(void) {
+    /* We received an ethernet package. Determine its type, and dispatch it to the related handler. */
+    uint16_t etherType = getEtherType(myethreceivebuffer);
+    #ifdef VERBOSE_QCA7000
+      showAsHex(myethreceivebuffer, myethreceivebufferLen, "eth.myreceivebuffer");
+    #endif
+    if (etherType == 0x88E1) { /* it is a HomePlug message */
+      //Serial.println("Its a HomePlug message.");
+      addToTrace(MOD_QCA, "Its a HomePlug message.");
+      //canbus_addToBinaryLogging(0xAA5A, myethreceivebuffer, myethreceivebufferLen);
+      /* we log the ethernet traffic, but we stop logging it, when we entered the
+         charging loop, to avoid spamming the log */
+      if (checkpointNumber<700) {
+        addToTrace(MOD_ETHTRAFFIC, "ETH rx HP:", myethreceivebuffer, myethreceivebufferLen);
+      } else {
+        /* We are in the charging loop or beyond. Do not log the ethernet traffic. */
+      }
+      evaluateReceivedHomeplugPacket();
+    } else if (etherType == 0x86dd) { /* it is an IPv6 frame */
+      addToTrace(MOD_QCA, "Its a IPv6 message.");
+      //canbus_addToBinaryLogging(0xAA5A, myethreceivebuffer, myethreceivebufferLen);
+      /* we log the ethernet traffic, but we stop logging it, when we entered the
+         charging loop, to avoid spamming the log */
+      if (checkpointNumber<700) {
+        addToTrace(MOD_ETHTRAFFIC, "ETH rx IP:", myethreceivebuffer, myethreceivebufferLen);
+      } else {
+        /* We are in the charging loop or beyond. Do not log the ethernet traffic. */
+      }
+      ipv6_evaluateReceivedPacket();
     } else {
-        /* no valid header -> end */
-        blDone=1;
+      //Serial.println("Other message.");
+      /* We do not log other messages, to avoid too much logging traffic. If needed, enable the logging,
+      by commenting-in this: addToTrace(MOD_ETHTRAFFIC, "ETH rx other:", myethreceivebuffer, myethreceivebufferLen);
+      */
+    }
+}
+
+void QCA7000checkRxDataAndDistribute(int16_t availbytes) {
+  /* The SPI receive buffer holds what we read from the QCA7000: a number of frames, each with the QCA framing around
+     it (see qcaframe.h). The read is limited to our buffer size, so the last frame may be cut, and its end comes with
+     the next read. qcaFrameRx_take() keeps the part until then, and gives us only complete frames. */
+  static struct QcaFrameRx qcaRx;
+  uint16_t used = 0, frameLen;
+  if (qcaRx.buf == 0) {
+    qcaFrameRx_init(&qcaRx, myethreceivebuffer, MY_ETH_RECEIVE_BUFFER_LEN);
+  }
+  while (availbytes > 0 && used < (uint16_t)availbytes) {
+    used += qcaFrameRx_take(&qcaRx, &mySpiRxBuffer[used], (uint16_t)availbytes - used, &frameLen);
+    if (frameLen > 0) {
+      myethreceivebufferLen = frameLen;
+      distributeEthFrame();
     }
   }
-  #ifdef VERBOSE_QCA7000
-    Serial.println("QCA7000: The SPI frame contained " + String(counterOfEthFramesInSpiFrame) + " ETH frames.");
-  #endif
+  debugCounter_cutted_myethreceivebufferLen = qcaRx.nDropped; /* frames dropped: too large, too small or out of step */
 }
 
 
@@ -257,8 +219,8 @@ void spiQCA7000checkForReceivedData(void) {
 
     /* For the case that the QCA contains more data than we could hold in our SPI buffer, we limit
     the size here. This may/will cause data loss, which could be handled by the following strategies:
-      - The next data will be read on the next call. Make sure that data of ONE ethernet frame which
-        is splitted over multiple call cycles is correctly treated (not implemented yet).
+      - The next data will be read on the next call. Data of ONE ethernet frame which is split over
+        two reads is put together by QCA7000checkRxDataAndDistribute().
       - Rely on the retry on the higher layers, and on the fact that nobody will send so much data
         in the given project. Ok as starting point, but can be improved. */
     if (availBytes+2 >= MY_SPI_TX_RX_BUFFER_SIZE) {

@@ -23,6 +23,9 @@ extern "C" {
 extern void tcp_Mainfunction(void);
 extern void evaluateTcpPacket(void);
 extern uint32_t tcp_getTotalNumberOfRetries(void);
+/* 1 once after the receive path stopped on an invalid V2GTP header or a message larger than tcp_rxdata; the state
+   machine then stops the session. Nothing more is received or acknowledged until the next connection. */
+extern uint8_t tcp_takeReceiveError(void);
 extern void tcp_Disconnect(void);
 extern void tcp_transmit(void);
 

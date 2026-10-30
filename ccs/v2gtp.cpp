@@ -29,7 +29,7 @@ void v2gtpRx_start(struct V2gtpRx* rx, uint8_t* buf, uint16_t size, uint32_t fir
    rx->nextSeq = firstSeq;
    rx->len = 0;
    rx->msgLen = 0;
-   rx->skip = 0;
+   rx->isFailed = 0;
 }
 
 uint8_t v2gtpRx_segment(struct V2gtpRx* rx, uint32_t seq, const uint8_t* data, uint16_t n, uint16_t* completeLen)
@@ -37,6 +37,8 @@ uint8_t v2gtpRx_segment(struct V2gtpRx* rx, uint32_t seq, const uint8_t* data, u
    uint8_t result = 0;
    int32_t offset = (int32_t)(seq - rx->nextSeq); /* (sequence numbers wrap: compare by difference) */
 
+   if (rx->isFailed)
+      return V2GTPRX_ERROR;
    if (n == 0)
       return 0;
    if (offset > 0)
@@ -49,13 +51,7 @@ uint8_t v2gtpRx_segment(struct V2gtpRx* rx, uint32_t seq, const uint8_t* data, u
    while (n > 0)
    {
       uint16_t k;
-      if (rx->skip > 0)
-      {
-         /* the rest of a message too large for the buffer */
-         k = rx->skip < (uint32_t)n ? (uint16_t)rx->skip : n;
-         rx->skip -= k;
-      }
-      else if (rx->msgLen == 0)
+      if (rx->msgLen == 0)
       {
          /* the header */
          if (rx->len == 0)
@@ -65,41 +61,17 @@ uint8_t v2gtpRx_segment(struct V2gtpRx* rx, uint32_t seq, const uint8_t* data, u
          rx->len += k;
          if (rx->len == V2GTP_HEADER_LEN)
          {
-            if (rx->buf[0] != 0x01 || rx->buf[1] != 0xFE)
+            uint32_t payloadLen = readU32(&rx->buf[4]);
+            if (rx->buf[0] != 0x01 || rx->buf[1] != 0xFE || payloadLen > (uint32_t)(rx->size - V2GTP_HEADER_LEN))
             {
-               /* not a V2GTP header: pass on the rest of the segment as it is, as before message assembly */
-               uint16_t rest = n - k;
-               if (rest > rx->size - rx->len)
-                  rest = rx->size - rx->len;
-               memcpy(&rx->buf[rx->len], data + k, rest);
-               *completeLen = rx->len + rest;
+               /* Not a V2GTP header, or a message we can't hold. Skipping it by its length can't be trusted: a
+                  corrupt length would make us skip, and acknowledge, whatever comes next. So stop here. The header
+                  is not acknowledged. */
                rx->len = 0;
-               rx->nextSeq += n;
-               return result | V2GTPRX_BAD_HEADER | V2GTPRX_COMPLETE;
+               rx->isFailed = 1;
+               return result | V2GTPRX_ERROR;
             }
-            rx->msgLen = V2GTP_HEADER_LEN + readU32(&rx->buf[4]);
-            if (rx->msgLen < V2GTP_HEADER_LEN || rx->msgLen > rx->size)
-            {
-               /* too large for the buffer (or a length that wraps): discard it to its end */
-               rx->skip = rx->msgLen - V2GTP_HEADER_LEN;
-               if (rx->msgLen < V2GTP_HEADER_LEN)
-                  rx->skip = 0xFFFFFFFFu; /* nonsense length: discard everything from here */
-               rx->len = 0;
-               rx->msgLen = 0;
-               result |= V2GTPRX_TOO_LARGE;
-            }
-            else if (rx->msgLen == V2GTP_HEADER_LEN)
-            {
-               /* a message without payload */
-               *completeLen = rx->len;
-               rx->len = 0;
-               rx->msgLen = 0;
-               result |= V2GTPRX_COMPLETE;
-               rx->nextSeq += k;
-               data += k;
-               n -= k;
-               break;
-            }
+            rx->msgLen = V2GTP_HEADER_LEN + payloadLen;
          }
       }
       else
@@ -108,27 +80,23 @@ uint8_t v2gtpRx_segment(struct V2gtpRx* rx, uint32_t seq, const uint8_t* data, u
          k = rx->msgLen - rx->len < (uint32_t)n ? (uint16_t)(rx->msgLen - rx->len) : n;
          memcpy(&rx->buf[rx->len], data, k);
          rx->len += k;
-         if (rx->len == rx->msgLen)
-         {
-            *completeLen = rx->len;
-            rx->len = 0;
-            rx->msgLen = 0;
-            result |= V2GTPRX_COMPLETE;
-            rx->nextSeq += k;
-            data += k;
-            n -= k;
-            break;
-         }
       }
       rx->nextSeq += k;
       data += k;
       n -= k;
+      if (rx->msgLen != 0 && rx->len == rx->msgLen)
+      {
+         *completeLen = rx->len;
+         rx->len = 0;
+         rx->msgLen = 0;
+         result |= V2GTPRX_COMPLETE;
+         break;
+      }
    }
    if (n > 0)
    {
-      /* more after a complete message: the next request hasn't even gone out, so this isn't expected; acknowledge it
-         and drop it, rather than overwrite the message just completed */
-      rx->nextSeq += n;
+      /* More after a complete message, for example the start of the next one. Not taken and not acknowledged:
+         the sender sends it again, once the message just completed has been processed. */
       result |= V2GTPRX_EXTRA;
    }
    return result;
