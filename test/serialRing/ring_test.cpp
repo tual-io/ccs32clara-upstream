@@ -582,6 +582,8 @@ static int run(unsigned seed, unsigned long ops)
          k++;
       printf("main-loop output %zu bytes, printed %zu bytes, first difference at byte %zu\n", mainGot.size(),
              mainOrder.size(), k);
+      printf("  printed: ...%s...\n", mainOrder.substr(k > 60 ? k - 60 : 0, 160).c_str());
+      printf("  got:     ...%s...\n", mainGot.substr(k > 60 ? k - 60 : 0, 160).c_str());
       fail("the main loop's output and Terminal's sends didn't arrive exactly as printed");
    }
    if (!allowLongLines && isrLinesTried - isrLinesGot != droppedTotal)
