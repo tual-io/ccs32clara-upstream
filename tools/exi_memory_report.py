@@ -23,6 +23,12 @@ char size_appHandEXIDocument[sizeof(struct appHandEXIDocument)];
 char size_dinEXIDocument[sizeof(struct dinEXIDocument)];
 char size_dinBodyType[sizeof(struct dinBodyType)];
 char size_dinMessageHeaderType[sizeof(struct dinMessageHeaderType)];
+char size_dinChargeParameterDiscoveryResType[sizeof(struct dinChargeParameterDiscoveryResType)];
+char size_dinServiceDiscoveryResType[sizeof(struct dinServiceDiscoveryResType)];
+char size_dinCurrentDemandResType[sizeof(struct dinCurrentDemandResType)];
+char size_dinCertificateInstallationResType[sizeof(struct dinCertificateInstallationResType)];
+char size_dinCertificateUpdateResType[sizeof(struct dinCertificateUpdateResType)];
+char size_dinPaymentDetailsReqType[sizeof(struct dinPaymentDetailsReqType)];
 #ifdef USE_ISO1
 char size_iso1EXIDocument[sizeof(struct iso1EXIDocument)];
 char size_iso1BodyType[sizeof(struct iso1BodyType)];
