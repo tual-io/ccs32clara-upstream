@@ -275,6 +275,9 @@ RingTerminal::RingTerminal(uint32_t usart, const TERM_CMD* commands)
    /* The Terminal has set up DMA2 channel 5 for UART4 TX; the ring uses it too (see above), with its interrupt. */
    nvic_set_priority(NVIC_DMA2_CHANNEL4_5_IRQ, LOG_MASK_LEVEL);
    nvic_enable_irq(NVIC_DMA2_CHANNEL4_5_IRQ);
+   /* Terminal's first send doesn't wait for TCIF, so it would abort a ring transfer under way. Make it now, while the
+      ring is empty: a line end. From then on Terminal waits for TCIF, as the ring expects. */
+   SendBinary((const uint8_t*)"\r\n", 2);
 }
 
 void RingTerminal::PutChar(char c)

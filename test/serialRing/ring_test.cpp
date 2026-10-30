@@ -311,6 +311,8 @@ static void isrAction(void)
 /* The scheduler's interrupt, now (the caller has checked that the masking allows it). */
 static void runSchedulerIsr(void)
 {
+   if (term == 0)
+      return; /* not yet: RingTerminal's constructor is still running */
    uint32_t saved = simIpsr;
    simIpsr = 16 + 30; /* TIM4 */
    isrAction();
@@ -394,6 +396,11 @@ static void terminalSend(const std::string& s)
    hwStep();
 }
 
+void Terminal::SendBinary(const uint8_t* data, uint32_t length)
+{
+   terminalSend(std::string((const char*)data, length));
+}
+
 /* --- the run --- */
 
 /* The output with the interrupts' lines (\x01 ... \r\n) and the drop reports taken out; reports' counts in reported. */
@@ -419,16 +426,21 @@ static std::string mainOnly(const std::string& w, unsigned long* isrLinesGot, un
       }
       if (w[pos] == '[')
       {
-         size_t e = w.find("\r\n", pos);
-         if (e != std::string::npos)
+         /* exactly "[<digits>] Serial output: <digits> lines dropped (ring full)\r\n" (json text has '[' too) */
+         size_t q = pos + 1;
+         while (q < w.size() && w[q] >= '0' && w[q] <= '9')
+            q++;
+         static const char mid[] = "] Serial output: ";
+         static const char end[] = " lines dropped (ring full)\r\n";
+         if (q > pos + 1 && w.compare(q, sizeof(mid) - 1, mid) == 0)
          {
-            std::string line = w.substr(pos, e - pos);
-            const char* p = strstr(line.c_str(), "] Serial output: ");
-            unsigned n;
-            if (p && sscanf(p, "] Serial output: %u lines dropped", &n) == 1)
+            size_t d = q + sizeof(mid) - 1, e = d;
+            while (e < w.size() && w[e] >= '0' && w[e] <= '9')
+               e++;
+            if (e > d && w.compare(e, sizeof(end) - 1, end) == 0)
             {
-               *reported += n;
-               pos = e + 2;
+               *reported += strtoul(w.substr(d, e - d).c_str(), 0, 10);
+               pos = e + sizeof(end) - 1;
                continue;
             }
          }
