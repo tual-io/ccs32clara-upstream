@@ -13,6 +13,8 @@ class RingTerminal : public Terminal
 public:
    RingTerminal(uint32_t usart, const TERM_CMD* commands);
    void PutChar(char c);
+   /* Terminal::Run, with the ring held back from interrupt context while it runs (see the ring's comment). */
+   void Run();
 };
 
 /* Every 100 ms: once a second, if lines were dropped because the ring was full, a line saying how many. */

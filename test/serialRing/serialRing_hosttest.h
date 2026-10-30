@@ -40,5 +40,7 @@ uint32_t interruptsDisabled(void);
 void hostPreemptionPoint(void);
 /* The main loop waits for room in the ring: time passes, the UART runs, and interrupts may run. */
 void hostWaitForRoom(void);
+/* Called for every byte put into the ring, after it is written. */
+void hostRecordByte(uint8_t c);
 
 #endif

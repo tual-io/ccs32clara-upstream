@@ -26,6 +26,7 @@ public:
    Terminal(uint32_t usart, const TERM_CMD* commands) { (void)usart; (void)commands; }
    void PutChar(char c) { (void)c; }
    void SendBinary(const uint8_t* data, uint32_t length); /* in ring_test.cpp: Terminal's own send, simulated */
+   void Run(); /* in ring_test.cpp: sends the reply the test has queued, if any */
 };
 
 #endif

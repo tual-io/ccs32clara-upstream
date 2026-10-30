@@ -27,9 +27,10 @@
    - If Terminal's transfer is under way, the ring waits for its completion interrupt.
    - The interrupt checks that a completed transfer was the ring's own (its memory address) before it moves the ring
      on.
-   What remains: if the scheduler's interrupt starts a ring transfer in the few instructions between Terminal seeing
-   TCIF and disabling the channel, Terminal's send aborts it; the ring then sends that piece again, so some bytes can
-   appear twice. The terminal's echo of typed characters (usart_send_blocking, not DMA) still goes straight to the
+   - While the main loop is in Terminal::Run, where Terminal sends, interrupt context doesn't start or chain ring
+     transfers (see Run), so it can't get between Terminal's wait and its programming of the channel, and Terminal
+     isn't kept waiting by a busy ring.
+   What remains: the terminal's echo of typed characters (usart_send_blocking, not DMA) still goes straight to the
    UART and can land inside a line, as before.
 
    Masking. The ring is shared by the main loop, the scheduler's interrupt (priority 0xE0) and this DMA interrupt
@@ -58,6 +59,7 @@ static volatile uint16_t head;   /* next byte written */
 static volatile uint16_t tail;   /* next byte sent */
 static volatile uint16_t dmaLen; /* bytes of the ring's transfer from tail; 0 when the ring has none under way */
 static volatile uint8_t started; /* the ring has used the channel at least once */
+static volatile uint8_t terminalBusy; /* the main loop is in Terminal::Run, where Terminal may send itself */
 
 struct LineBuf
 {
@@ -133,6 +135,8 @@ static void startDma(void)
 
    if (dmaLen != 0 || h == t)
       return;
+   if (terminalBusy && currentIpsr() != 0)
+      return; /* only the main loop starts the ring while Terminal may send (see Run) */
    if (dmaEnabled() ? dmaRemaining() != 0 : started)
    {
       /* Terminal's transfer is under way: its completion interrupt starts the ring. (A disabled channel: Terminal is
@@ -179,6 +183,9 @@ static inline void ringPut(uint8_t c)
    h = head;
 #endif
    ring[h] = c;
+#ifdef SERIALRING_HOST_TEST
+   hostRecordByte(c); /* the host test records what goes into the ring */
+#endif
    head = (uint16_t)(h + 1 == LOG_RING ? 0 : h + 1);
 }
 
@@ -278,6 +285,24 @@ RingTerminal::RingTerminal(uint32_t usart, const TERM_CMD* commands)
    /* Terminal's first send doesn't wait for TCIF, so it would abort a ring transfer under way. Make it now, while the
       ring is empty: a line end. From then on Terminal waits for TCIF, as the ring expects. */
    SendBinary((const uint8_t*)"\r\n", 2);
+}
+
+/* Terminal sends itself only from Terminal::Run (its replies, and the commands it calls). While it runs, only the main
+   loop, which is where Terminal runs, starts the ring: interrupt context neither starts a transfer nor chains the next
+   one. So Terminal and the ring never program the channel over each other, and when Terminal waits for TCIF the ring
+   lets it go after its current transfer, however much the interrupts print meanwhile (they fill the ring, and drop as
+   usual when it is full). Afterwards the main loop starts the ring again. Terminal::Run returns at once when nothing
+   was typed, so outside a command the ring is held back for microseconds. */
+void RingTerminal::Run()
+{
+   uint32_t old;
+
+   terminalBusy = 1;
+   Terminal::Run();
+   terminalBusy = 0;
+   old = maskLog();
+   startDma();
+   unmaskLog(old);
 }
 
 void RingTerminal::PutChar(char c)

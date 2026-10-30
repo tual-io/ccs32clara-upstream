@@ -22,8 +22,8 @@
    - No interrupt's output lands inside a main-loop piece while it is being put into the ring.
    - Every interrupt line either reached the UART whole or was counted as dropped, and the drop reports add up.
    - Neither Terminal's send nor the main loop waits for ever, and the DMA interrupt doesn't keep firing.
-   Not modelled: the scheduler's interrupt between Terminal seeing TCIF and disabling the channel (see
-   serialRing.cpp, "What remains").
+   The json replies are printed with the ring held back from interrupt context, as from inside Terminal::Run, and
+   Terminal's own sends come from Terminal::Run.
 
    usage: ring_test [seed] [operations] [long] */
 
@@ -262,8 +262,8 @@ template <class F> static void committed(F f)
    f();
    captureDepth--;
    uint16_t h1 = head;
-   for (uint16_t i = h0; i != h1; i = (uint16_t)((i + 1) % LOG_RING))
-      ringExpected += (char)ring[i];
+   /* (what went into the ring is recorded byte by byte, by hostRecordByte: a write that waits for room can see the
+      ring go round more than once) */
    if (h1 == 0 && h0 != 0)
       writesEndingAtWrap++;
 }
@@ -347,6 +347,11 @@ void hostWaitForRoom(void)
       runSchedulerIsr();
 }
 
+void hostRecordByte(uint8_t c)
+{
+   ringExpected += (char)c;
+}
+
 static void mainPutChar(char c)
 {
    waitSteps = 0;
@@ -399,6 +404,18 @@ static void terminalSend(const std::string& s)
 void Terminal::SendBinary(const uint8_t* data, uint32_t length)
 {
    terminalSend(std::string((const char*)data, length));
+}
+
+static std::string queuedReply; /* a reply Terminal::Run is to send */
+
+void Terminal::Run()
+{
+   if (!queuedReply.empty())
+   {
+      std::string s = queuedReply;
+      queuedReply.clear();
+      SendBinary((const uint8_t*)s.data(), (uint32_t)s.size());
+   }
 }
 
 /* --- the run --- */
@@ -479,13 +496,15 @@ static int run(unsigned seed, unsigned long ops)
                                                       "Baud rate now 921600\r\n", "Echo on\r\n" };
                if (uartMax == 0)
                   uartMax = 1; /* Terminal's wait needs the UART to run */
-               terminalSend(replies[rng() % 4]);
+               queuedReply = replies[rng() % 4];
+               term->Run(); /* Terminal sends it from its Run, as it does */
                continue;
             }
             if (what == 8)
             {
                pending = "{" + randomText(10000, jsonChars) + "}\r\n"; /* a "json" reply: 10 kB on one line */
                jsonReplies++;
+               terminalBusy = 1; /* printed by a command, from inside Terminal::Run */
                if (uartMax == 0)
                   uartMax = 1; /* the main loop waits for room: the UART must run */
             }
@@ -501,6 +520,14 @@ static int run(unsigned seed, unsigned long ops)
          if (uartMax == 0)
             uartMax = 1; /* the main loop may have to wait for room */
          mainPutChar(c);
+         if (terminalBusy && pendingPos >= pending.size())
+         {
+            /* the command is done: Terminal::Run returns, and the ring is started again */
+            terminalBusy = 0;
+            uint32_t old = maskLog();
+            startDma();
+            unmaskLog(old);
+         }
       }
       else if (r < 45 + isrShare)
       {
