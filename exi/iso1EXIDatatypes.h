@@ -489,7 +489,7 @@ struct iso1X509IssuerSerialType {
 		 * magnitude of the value minus 1 */
 		uint8_t data[iso1X509IssuerSerialType_X509SerialNumber_BYTES_SIZE];
 		/** array length (len <= size) */
-		size_t len;
+		uint32_t len; /* (was size_t, which decodeIntegerBig() doesn't take on this target) */
 	} X509SerialNumber;
 };
 
