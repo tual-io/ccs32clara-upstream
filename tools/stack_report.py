@@ -27,11 +27,15 @@ EXCEPTION_FRAME = 32
 # Calls through pointers: (caller, callees), as regular expressions on the demangled names.
 INDIRECT = [
     (r"^Stm32Scheduler::Run", [r"Ms30Task", r"Ms100Task"]),
-    (r"^pev_runFsm", [r"stateFunction"]),
+    (r"^(pev_runFsm|pevStateMachine_Mainfunction)", [r"stateFunction"]),
     (r"^(print|prints|printi)\(", [r"::PutChar\(char\)"]),
-    (r"^putchar", [r"::PutChar\(char\)"]),
+    (r"^putchar", [r"^Terminal::PutChar\(char\)"]),
     (r"^CanHardware::HandleRx", [r"^(CanMap|CanSdo)::HandleRx"]),
     (r"^CanHardware::ClearUserMessages", [r"^(CanMap|CanSdo)::HandleClear"]),
+    (r"^CanHardware::RegisterUserMessage", [r"^Stm32Can::ConfigureFilters"]),
+    (r"^(CanHardware::Send|CanMap::Send)", [r"^Stm32Can::Send\("]),
+    (r"^CanMap::IterateCanMap", [r"PrintCanMap"]),
+    (r"^Param::Change", [r"^Stm32Can::SetBaudrate"]),
     (r"^Terminal::Run", [r"\(Terminal\*, char\*\)", r"::PutChar\(char\)"]),
 ]
 
