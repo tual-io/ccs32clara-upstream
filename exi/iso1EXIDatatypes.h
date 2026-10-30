@@ -1897,9 +1897,6 @@ struct iso1MessageHeaderType {
 	/* element: "urn:iso:15118:2:2013:MsgHeader":Notification, Complex type name='urn:iso:15118:2:2013:MsgDataTypes,NotificationType',  base type name='anyType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgDataTypes":FaultCode,"urn:iso:15118:2:2013:MsgDataTypes":FaultMsg{0-1})',  derivedBy='RESTRICTION'.  */
 	struct iso1NotificationType Notification ;
 	unsigned int Notification_isUsed:1;
-	/* element: "http://www.w3.org/2000/09/xmldsig#":Signature, Complex type name='http://www.w3.org/2000/09/xmldsig#,SignatureType',  base type name='anyType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("http://www.w3.org/2000/09/xmldsig#":SignedInfo,"http://www.w3.org/2000/09/xmldsig#":SignatureValue,"http://www.w3.org/2000/09/xmldsig#":KeyInfo{0-1},"http://www.w3.org/2000/09/xmldsig#":Object{0-UNBOUNDED})',  derivedBy='RESTRICTION'.  */
-	struct iso1SignatureType Signature ;
-	unsigned int Signature_isUsed:1;
 };
 
 /* Complex type name='urn:iso:15118:2:2013:MsgDataTypes,SAScheduleListType',  base type name='SASchedulesType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgDataTypes":SAScheduleTuple{1-3})',  derivedBy='EXTENSION'.  */
@@ -1941,8 +1938,6 @@ struct iso1BodyType {
 #if SAVE_MEMORY_WITH_UNNAMED_UNION == UNION_YES
 	union {
 #endif /* SAVE_MEMORY_WITH_UNNAMED_UNION == UNION_YES */ 
-		/* element: "urn:iso:15118:2:2013:MsgBody":BodyElement, Complex type name='urn:iso:15118:2:2013:MsgBody,BodyBaseType',  base type name='anyType',  content type='EMPTY',  isAbstract='true',  hasTypeId='false',  final='0',  block='0',  derivedBy='RESTRICTION'.  */
-		struct iso1BodyBaseType BodyElement ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":SessionSetupReq, Complex type name='urn:iso:15118:2:2013:MsgBody,SessionSetupReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":EVCCID)',  derivedBy='EXTENSION'.  */
 		struct iso1SessionSetupReqType SessionSetupReq ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":SessionSetupRes, Complex type name='urn:iso:15118:2:2013:MsgBody,SessionSetupResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":EVSEID,"urn:iso:15118:2:2013:MsgBody":EVSETimeStamp{0-1})',  derivedBy='EXTENSION'.  */
@@ -1951,18 +1946,10 @@ struct iso1BodyType {
 		struct iso1ServiceDiscoveryReqType ServiceDiscoveryReq ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":ServiceDiscoveryRes, Complex type name='urn:iso:15118:2:2013:MsgBody,ServiceDiscoveryResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":PaymentOptionList,"urn:iso:15118:2:2013:MsgBody":ChargeService,"urn:iso:15118:2:2013:MsgBody":ServiceList{0-1})',  derivedBy='EXTENSION'.  */
 		struct iso1ServiceDiscoveryResType ServiceDiscoveryRes ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":ServiceDetailReq, Complex type name='urn:iso:15118:2:2013:MsgBody,ServiceDetailReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ServiceID)',  derivedBy='EXTENSION'.  */
-		struct iso1ServiceDetailReqType ServiceDetailReq ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":ServiceDetailRes, Complex type name='urn:iso:15118:2:2013:MsgBody,ServiceDetailResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":ServiceID,"urn:iso:15118:2:2013:MsgBody":ServiceParameterList{0-1})',  derivedBy='EXTENSION'.  */
-		struct iso1ServiceDetailResType ServiceDetailRes ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":PaymentServiceSelectionReq, Complex type name='urn:iso:15118:2:2013:MsgBody,PaymentServiceSelectionReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":SelectedPaymentOption,"urn:iso:15118:2:2013:MsgBody":SelectedServiceList)',  derivedBy='EXTENSION'.  */
 		struct iso1PaymentServiceSelectionReqType PaymentServiceSelectionReq ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":PaymentServiceSelectionRes, Complex type name='urn:iso:15118:2:2013:MsgBody,PaymentServiceSelectionResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode)',  derivedBy='EXTENSION'.  */
 		struct iso1PaymentServiceSelectionResType PaymentServiceSelectionRes ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":PaymentDetailsReq, Complex type name='urn:iso:15118:2:2013:MsgBody,PaymentDetailsReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":eMAID,"urn:iso:15118:2:2013:MsgBody":ContractSignatureCertChain)',  derivedBy='EXTENSION'.  */
-		struct iso1PaymentDetailsReqType PaymentDetailsReq ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":PaymentDetailsRes, Complex type name='urn:iso:15118:2:2013:MsgBody,PaymentDetailsResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":GenChallenge,"urn:iso:15118:2:2013:MsgBody":EVSETimeStamp)',  derivedBy='EXTENSION'.  */
-		struct iso1PaymentDetailsResType PaymentDetailsRes ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":AuthorizationReq, Complex type name='urn:iso:15118:2:2013:MsgBody,AuthorizationReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":GenChallenge{0-1})',  derivedBy='EXTENSION'.  */
 		struct iso1AuthorizationReqType AuthorizationReq ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":AuthorizationRes, Complex type name='urn:iso:15118:2:2013:MsgBody,AuthorizationResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":EVSEProcessing)',  derivedBy='EXTENSION'.  */
@@ -1975,26 +1962,10 @@ struct iso1BodyType {
 		struct iso1PowerDeliveryReqType PowerDeliveryReq ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":PowerDeliveryRes, Complex type name='urn:iso:15118:2:2013:MsgBody,PowerDeliveryResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgDataTypes":EVSEStatus)',  derivedBy='EXTENSION'.  */
 		struct iso1PowerDeliveryResType PowerDeliveryRes ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":MeteringReceiptReq, Complex type name='urn:iso:15118:2:2013:MsgBody,MeteringReceiptReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":SessionID,"urn:iso:15118:2:2013:MsgBody":SAScheduleTupleID{0-1},"urn:iso:15118:2:2013:MsgBody":MeterInfo)',  derivedBy='EXTENSION'.  */
-		struct iso1MeteringReceiptReqType MeteringReceiptReq ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":MeteringReceiptRes, Complex type name='urn:iso:15118:2:2013:MsgBody,MeteringReceiptResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgDataTypes":EVSEStatus)',  derivedBy='EXTENSION'.  */
-		struct iso1MeteringReceiptResType MeteringReceiptRes ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":SessionStopReq, Complex type name='urn:iso:15118:2:2013:MsgBody,SessionStopReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ChargingSession)',  derivedBy='EXTENSION'.  */
 		struct iso1SessionStopReqType SessionStopReq ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":SessionStopRes, Complex type name='urn:iso:15118:2:2013:MsgBody,SessionStopResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode)',  derivedBy='EXTENSION'.  */
 		struct iso1SessionStopResType SessionStopRes ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":CertificateUpdateReq, Complex type name='urn:iso:15118:2:2013:MsgBody,CertificateUpdateReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ContractSignatureCertChain,"urn:iso:15118:2:2013:MsgBody":eMAID,"urn:iso:15118:2:2013:MsgBody":ListOfRootCertificateIDs)',  derivedBy='EXTENSION'.  */
-		struct iso1CertificateUpdateReqType CertificateUpdateReq ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":CertificateUpdateRes, Complex type name='urn:iso:15118:2:2013:MsgBody,CertificateUpdateResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":SAProvisioningCertificateChain,"urn:iso:15118:2:2013:MsgBody":ContractSignatureCertChain,"urn:iso:15118:2:2013:MsgBody":ContractSignatureEncryptedPrivateKey,"urn:iso:15118:2:2013:MsgBody":DHpublickey,"urn:iso:15118:2:2013:MsgBody":eMAID,"urn:iso:15118:2:2013:MsgBody":RetryCounter{0-1})',  derivedBy='EXTENSION'.  */
-		struct iso1CertificateUpdateResType CertificateUpdateRes ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":CertificateInstallationReq, Complex type name='urn:iso:15118:2:2013:MsgBody,CertificateInstallationReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":OEMProvisioningCert,"urn:iso:15118:2:2013:MsgBody":ListOfRootCertificateIDs)',  derivedBy='EXTENSION'.  */
-		struct iso1CertificateInstallationReqType CertificateInstallationReq ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":CertificateInstallationRes, Complex type name='urn:iso:15118:2:2013:MsgBody,CertificateInstallationResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":SAProvisioningCertificateChain,"urn:iso:15118:2:2013:MsgBody":ContractSignatureCertChain,"urn:iso:15118:2:2013:MsgBody":ContractSignatureEncryptedPrivateKey,"urn:iso:15118:2:2013:MsgBody":DHpublickey,"urn:iso:15118:2:2013:MsgBody":eMAID)',  derivedBy='EXTENSION'.  */
-		struct iso1CertificateInstallationResType CertificateInstallationRes ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":ChargingStatusReq, Complex type name='urn:iso:15118:2:2013:MsgBody,ChargingStatusReqType',  base type name='BodyBaseType',  content type='EMPTY',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  derivedBy='EXTENSION'.  */
-		struct iso1ChargingStatusReqType ChargingStatusReq ;
-		/* element: "urn:iso:15118:2:2013:MsgBody":ChargingStatusRes, Complex type name='urn:iso:15118:2:2013:MsgBody,ChargingStatusResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":EVSEID,"urn:iso:15118:2:2013:MsgBody":SAScheduleTupleID,"urn:iso:15118:2:2013:MsgBody":EVSEMaxCurrent{0-1},"urn:iso:15118:2:2013:MsgBody":MeterInfo{0-1},"urn:iso:15118:2:2013:MsgBody":ReceiptRequired{0-1},"urn:iso:15118:2:2013:MsgBody":AC_EVSEStatus)',  derivedBy='EXTENSION'.  */
-		struct iso1ChargingStatusResType ChargingStatusRes ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":CableCheckReq, Complex type name='urn:iso:15118:2:2013:MsgBody,CableCheckReqType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":DC_EVStatus)',  derivedBy='EXTENSION'.  */
 		struct iso1CableCheckReqType CableCheckReq ;
 		/* element: "urn:iso:15118:2:2013:MsgBody":CableCheckRes, Complex type name='urn:iso:15118:2:2013:MsgBody,CableCheckResType',  base type name='BodyBaseType',  content type='ELEMENT',  isAbstract='false',  hasTypeId='false',  final='0',  block='0',  particle='("urn:iso:15118:2:2013:MsgBody":ResponseCode,"urn:iso:15118:2:2013:MsgBody":DC_EVSEStatus,"urn:iso:15118:2:2013:MsgBody":EVSEProcessing)',  derivedBy='EXTENSION'.  */
@@ -2014,33 +1985,20 @@ struct iso1BodyType {
 #if SAVE_MEMORY_WITH_UNNAMED_UNION == UNION_YES
 	};
 #endif /* SAVE_MEMORY_WITH_UNNAMED_UNION == UNION_YES */ 
-		unsigned int BodyElement_isUsed:1;
 		unsigned int SessionSetupReq_isUsed:1;
 		unsigned int SessionSetupRes_isUsed:1;
 		unsigned int ServiceDiscoveryReq_isUsed:1;
 		unsigned int ServiceDiscoveryRes_isUsed:1;
-		unsigned int ServiceDetailReq_isUsed:1;
-		unsigned int ServiceDetailRes_isUsed:1;
 		unsigned int PaymentServiceSelectionReq_isUsed:1;
 		unsigned int PaymentServiceSelectionRes_isUsed:1;
-		unsigned int PaymentDetailsReq_isUsed:1;
-		unsigned int PaymentDetailsRes_isUsed:1;
 		unsigned int AuthorizationReq_isUsed:1;
 		unsigned int AuthorizationRes_isUsed:1;
 		unsigned int ChargeParameterDiscoveryReq_isUsed:1;
 		unsigned int ChargeParameterDiscoveryRes_isUsed:1;
 		unsigned int PowerDeliveryReq_isUsed:1;
 		unsigned int PowerDeliveryRes_isUsed:1;
-		unsigned int MeteringReceiptReq_isUsed:1;
-		unsigned int MeteringReceiptRes_isUsed:1;
 		unsigned int SessionStopReq_isUsed:1;
 		unsigned int SessionStopRes_isUsed:1;
-		unsigned int CertificateUpdateReq_isUsed:1;
-		unsigned int CertificateUpdateRes_isUsed:1;
-		unsigned int CertificateInstallationReq_isUsed:1;
-		unsigned int CertificateInstallationRes_isUsed:1;
-		unsigned int ChargingStatusReq_isUsed:1;
-		unsigned int ChargingStatusRes_isUsed:1;
 		unsigned int CableCheckReq_isUsed:1;
 		unsigned int CableCheckRes_isUsed:1;
 		unsigned int PreChargeReq_isUsed:1;
@@ -2108,84 +2066,10 @@ struct iso1EXIDocument {
 	union {
 #endif /* SAVE_MEMORY_WITH_UNNAMED_UNION == UNION_YES */ 
 	struct iso1AnonType_V2G_Message V2G_Message ;
-	struct iso1ServiceDiscoveryReqType ServiceDiscoveryReq ;
-	struct iso1ServiceDiscoveryResType ServiceDiscoveryRes ;
-	struct iso1MeteringReceiptReqType MeteringReceiptReq ;
-	struct iso1PaymentDetailsReqType PaymentDetailsReq ;
-	struct iso1MeteringReceiptResType MeteringReceiptRes ;
-	struct iso1PaymentDetailsResType PaymentDetailsRes ;
-	struct iso1SessionSetupReqType SessionSetupReq ;
-	struct iso1SessionSetupResType SessionSetupRes ;
-	struct iso1CableCheckReqType CableCheckReq ;
-	struct iso1CableCheckResType CableCheckRes ;
-	struct iso1CertificateInstallationReqType CertificateInstallationReq ;
-	struct iso1CertificateInstallationResType CertificateInstallationRes ;
-	struct iso1WeldingDetectionReqType WeldingDetectionReq ;
-	struct iso1WeldingDetectionResType WeldingDetectionRes ;
-	struct iso1CertificateUpdateReqType CertificateUpdateReq ;
-	struct iso1CertificateUpdateResType CertificateUpdateRes ;
-	struct iso1PaymentServiceSelectionReqType PaymentServiceSelectionReq ;
-	struct iso1PowerDeliveryReqType PowerDeliveryReq ;
-	struct iso1PaymentServiceSelectionResType PaymentServiceSelectionRes ;
-	struct iso1PowerDeliveryResType PowerDeliveryRes ;
-	struct iso1ChargingStatusReqType ChargingStatusReq ;
-	struct iso1ChargingStatusResType ChargingStatusRes ;
-	struct iso1BodyBaseType BodyElement ;
-	struct iso1CurrentDemandReqType CurrentDemandReq ;
-	struct iso1PreChargeReqType PreChargeReq ;
-	struct iso1CurrentDemandResType CurrentDemandRes ;
-	struct iso1PreChargeResType PreChargeRes ;
-	struct iso1SessionStopReqType SessionStopReq ;
-	struct iso1AuthorizationReqType AuthorizationReq ;
-	struct iso1SessionStopResType SessionStopRes ;
-	struct iso1AuthorizationResType AuthorizationRes ;
-	struct iso1ChargeParameterDiscoveryReqType ChargeParameterDiscoveryReq ;
-	struct iso1ChargeParameterDiscoveryResType ChargeParameterDiscoveryRes ;
-	struct iso1ServiceDetailReqType ServiceDetailReq ;
-	struct iso1ServiceDetailResType ServiceDetailRes ;
-	struct iso1DC_EVSEStatusType DC_EVSEStatus ;
-	struct iso1RelativeTimeIntervalType RelativeTimeInterval ;
-	struct iso1SalesTariffEntryType SalesTariffEntry ;
-	struct iso1DC_EVPowerDeliveryParameterType DC_EVPowerDeliveryParameter ;
-	struct iso1SASchedulesType SASchedules ;
-	struct iso1AC_EVChargeParameterType AC_EVChargeParameter ;
-	struct iso1SAScheduleListType SAScheduleList ;
-	struct iso1DC_EVStatusType DC_EVStatus ;
-	struct iso1EVStatusType EVStatus ;
-	struct iso1DC_EVChargeParameterType DC_EVChargeParameter ;
-	struct iso1DC_EVSEChargeParameterType DC_EVSEChargeParameter ;
-	struct iso1EVSEStatusType EVSEStatus ;
-	struct iso1IntervalType TimeInterval ;
-	struct iso1EVPowerDeliveryParameterType EVPowerDeliveryParameter ;
-	struct iso1EVSEChargeParameterType EVSEChargeParameter ;
-	struct iso1AC_EVSEStatusType AC_EVSEStatus ;
-	struct iso1EntryType Entry ;
-	struct iso1AC_EVSEChargeParameterType AC_EVSEChargeParameter ;
-	struct iso1PMaxScheduleEntryType PMaxScheduleEntry ;
-	struct iso1EVChargeParameterType EVChargeParameter ;
-	struct iso1SignaturePropertyType SignatureProperty ;
-	struct iso1DSAKeyValueType DSAKeyValue ;
-	struct iso1SignaturePropertiesType SignatureProperties ;
-	struct iso1KeyValueType KeyValue ;
-	struct iso1TransformsType Transforms ;
-	struct iso1DigestMethodType DigestMethod ;
-	struct iso1SignatureType Signature ;
-	struct iso1RetrievalMethodType RetrievalMethod ;
-	struct iso1ManifestType Manifest ;
-	struct iso1ReferenceType Reference ;
-	struct iso1CanonicalizationMethodType CanonicalizationMethod ;
-	struct iso1RSAKeyValueType RSAKeyValue ;
-	struct iso1TransformType Transform ;
-	struct iso1PGPDataType PGPData ;
 	struct {
 		exi_string_character_t characters[iso1EXIDocument_MgmtData_CHARACTERS_SIZE];
 		uint16_t charactersLen;
 	}  MgmtData ;
-	struct iso1SignatureMethodType SignatureMethod ;
-	struct iso1KeyInfoType KeyInfo ;
-	struct iso1SPKIDataType SPKIData ;
-	struct iso1X509DataType X509Data ;
-	struct iso1SignatureValueType SignatureValue ;
 	struct {
 		exi_string_character_t characters[iso1EXIDocument_KeyName_CHARACTERS_SIZE];
 		uint16_t charactersLen;
@@ -2194,91 +2078,10 @@ struct iso1EXIDocument {
 		uint8_t bytes[iso1EXIDocument_DigestValue_BYTES_SIZE];
 		uint16_t bytesLen;
 	}  DigestValue ;
-	struct iso1SignedInfoType SignedInfo ;
-	struct iso1ObjectType Object ;
 #if SAVE_MEMORY_WITH_UNNAMED_UNION == UNION_YES
 	};
 #endif /* SAVE_MEMORY_WITH_UNNAMED_UNION == UNION_YES */ 
 	unsigned int V2G_Message_isUsed:1;
-	unsigned int ServiceDiscoveryReq_isUsed:1;
-	unsigned int ServiceDiscoveryRes_isUsed:1;
-	unsigned int MeteringReceiptReq_isUsed:1;
-	unsigned int PaymentDetailsReq_isUsed:1;
-	unsigned int MeteringReceiptRes_isUsed:1;
-	unsigned int PaymentDetailsRes_isUsed:1;
-	unsigned int SessionSetupReq_isUsed:1;
-	unsigned int SessionSetupRes_isUsed:1;
-	unsigned int CableCheckReq_isUsed:1;
-	unsigned int CableCheckRes_isUsed:1;
-	unsigned int CertificateInstallationReq_isUsed:1;
-	unsigned int CertificateInstallationRes_isUsed:1;
-	unsigned int WeldingDetectionReq_isUsed:1;
-	unsigned int WeldingDetectionRes_isUsed:1;
-	unsigned int CertificateUpdateReq_isUsed:1;
-	unsigned int CertificateUpdateRes_isUsed:1;
-	unsigned int PaymentServiceSelectionReq_isUsed:1;
-	unsigned int PowerDeliveryReq_isUsed:1;
-	unsigned int PaymentServiceSelectionRes_isUsed:1;
-	unsigned int PowerDeliveryRes_isUsed:1;
-	unsigned int ChargingStatusReq_isUsed:1;
-	unsigned int ChargingStatusRes_isUsed:1;
-	unsigned int BodyElement_isUsed:1;
-	unsigned int CurrentDemandReq_isUsed:1;
-	unsigned int PreChargeReq_isUsed:1;
-	unsigned int CurrentDemandRes_isUsed:1;
-	unsigned int PreChargeRes_isUsed:1;
-	unsigned int SessionStopReq_isUsed:1;
-	unsigned int AuthorizationReq_isUsed:1;
-	unsigned int SessionStopRes_isUsed:1;
-	unsigned int AuthorizationRes_isUsed:1;
-	unsigned int ChargeParameterDiscoveryReq_isUsed:1;
-	unsigned int ChargeParameterDiscoveryRes_isUsed:1;
-	unsigned int ServiceDetailReq_isUsed:1;
-	unsigned int ServiceDetailRes_isUsed:1;
-	unsigned int DC_EVSEStatus_isUsed:1;
-	unsigned int RelativeTimeInterval_isUsed:1;
-	unsigned int SalesTariffEntry_isUsed:1;
-	unsigned int DC_EVPowerDeliveryParameter_isUsed:1;
-	unsigned int SASchedules_isUsed:1;
-	unsigned int AC_EVChargeParameter_isUsed:1;
-	unsigned int SAScheduleList_isUsed:1;
-	unsigned int DC_EVStatus_isUsed:1;
-	unsigned int EVStatus_isUsed:1;
-	unsigned int DC_EVChargeParameter_isUsed:1;
-	unsigned int DC_EVSEChargeParameter_isUsed:1;
-	unsigned int EVSEStatus_isUsed:1;
-	unsigned int TimeInterval_isUsed:1;
-	unsigned int EVPowerDeliveryParameter_isUsed:1;
-	unsigned int EVSEChargeParameter_isUsed:1;
-	unsigned int AC_EVSEStatus_isUsed:1;
-	unsigned int Entry_isUsed:1;
-	unsigned int AC_EVSEChargeParameter_isUsed:1;
-	unsigned int PMaxScheduleEntry_isUsed:1;
-	unsigned int EVChargeParameter_isUsed:1;
-	unsigned int SignatureProperty_isUsed:1;
-	unsigned int DSAKeyValue_isUsed:1;
-	unsigned int SignatureProperties_isUsed:1;
-	unsigned int KeyValue_isUsed:1;
-	unsigned int Transforms_isUsed:1;
-	unsigned int DigestMethod_isUsed:1;
-	unsigned int Signature_isUsed:1;
-	unsigned int RetrievalMethod_isUsed:1;
-	unsigned int Manifest_isUsed:1;
-	unsigned int Reference_isUsed:1;
-	unsigned int CanonicalizationMethod_isUsed:1;
-	unsigned int RSAKeyValue_isUsed:1;
-	unsigned int Transform_isUsed:1;
-	unsigned int PGPData_isUsed:1;
-	unsigned int MgmtData_isUsed:1;
-	unsigned int SignatureMethod_isUsed:1;
-	unsigned int KeyInfo_isUsed:1;
-	unsigned int SPKIData_isUsed:1;
-	unsigned int X509Data_isUsed:1;
-	unsigned int SignatureValue_isUsed:1;
-	unsigned int KeyName_isUsed:1;
-	unsigned int DigestValue_isUsed:1;
-	unsigned int SignedInfo_isUsed:1;
-	unsigned int Object_isUsed:1;
 
 
 	int _warning_;

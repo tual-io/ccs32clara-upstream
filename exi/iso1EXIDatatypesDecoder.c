@@ -216,11 +216,6 @@ static int decode_iso1MessageHeaderType(bitstream_t* stream, struct iso1MessageH
 					iso1MessageHeaderType->Notification_isUsed = 1u;
 					grammarID = 2;
 					break;
-				case 1:
-					errn = decode_iso1SignatureType(stream, &iso1MessageHeaderType->Signature);
-					iso1MessageHeaderType->Signature_isUsed = 1u;
-					grammarID = 3;
-					break;
 				case 2:
 					done = 1;
 					grammarID = 4;
@@ -236,11 +231,6 @@ static int decode_iso1MessageHeaderType(bitstream_t* stream, struct iso1MessageH
 			errn = decodeNBitUnsignedInteger(stream, 2, &eventCode);
 			if (errn == 0) {
 				switch(eventCode) {
-				case 0:
-					errn = decode_iso1SignatureType(stream, &iso1MessageHeaderType->Signature);
-					iso1MessageHeaderType->Signature_isUsed = 1u;
-					grammarID = 3;
-					break;
 				case 1:
 					done = 1;
 					grammarID = 4;
@@ -9849,24 +9839,9 @@ static int decode_iso1BodyType(bitstream_t* stream, struct iso1BodyType* iso1Bod
 			errn = decodeNBitUnsignedInteger(stream, 6, &eventCode);
 			if (errn == 0) {
 				switch(eventCode) {
-				case 0:
-					errn = decode_iso1AuthorizationReqType(stream, &iso1BodyType->AuthorizationReq);
-					iso1BodyType->AuthorizationReq_isUsed = 1u;
-					grammarID = 3;
-					break;
 				case 1:
 					errn = decode_iso1AuthorizationResType(stream, &iso1BodyType->AuthorizationRes);
 					iso1BodyType->AuthorizationRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 2:
-					errn = decode_iso1BodyBaseType(stream, &iso1BodyType->BodyElement);
-					iso1BodyType->BodyElement_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 3:
-					errn = decode_iso1CableCheckReqType(stream, &iso1BodyType->CableCheckReq);
-					iso1BodyType->CableCheckReq_isUsed = 1u;
 					grammarID = 3;
 					break;
 				case 4:
@@ -9874,49 +9849,9 @@ static int decode_iso1BodyType(bitstream_t* stream, struct iso1BodyType* iso1Bod
 					iso1BodyType->CableCheckRes_isUsed = 1u;
 					grammarID = 3;
 					break;
-				case 5:
-					errn = decode_iso1CertificateInstallationReqType(stream, &iso1BodyType->CertificateInstallationReq);
-					iso1BodyType->CertificateInstallationReq_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 6:
-					errn = decode_iso1CertificateInstallationResType(stream, &iso1BodyType->CertificateInstallationRes);
-					iso1BodyType->CertificateInstallationRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 7:
-					errn = decode_iso1CertificateUpdateReqType(stream, &iso1BodyType->CertificateUpdateReq);
-					iso1BodyType->CertificateUpdateReq_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 8:
-					errn = decode_iso1CertificateUpdateResType(stream, &iso1BodyType->CertificateUpdateRes);
-					iso1BodyType->CertificateUpdateRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 9:
-					errn = decode_iso1ChargeParameterDiscoveryReqType(stream, &iso1BodyType->ChargeParameterDiscoveryReq);
-					iso1BodyType->ChargeParameterDiscoveryReq_isUsed = 1u;
-					grammarID = 3;
-					break;
 				case 10:
 					errn = decode_iso1ChargeParameterDiscoveryResType(stream, &iso1BodyType->ChargeParameterDiscoveryRes);
 					iso1BodyType->ChargeParameterDiscoveryRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 11:
-					errn = decode_iso1ChargingStatusReqType(stream, &iso1BodyType->ChargingStatusReq);
-					iso1BodyType->ChargingStatusReq_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 12:
-					errn = decode_iso1ChargingStatusResType(stream, &iso1BodyType->ChargingStatusRes);
-					iso1BodyType->ChargingStatusRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 13:
-					errn = decode_iso1CurrentDemandReqType(stream, &iso1BodyType->CurrentDemandReq);
-					iso1BodyType->CurrentDemandReq_isUsed = 1u;
 					grammarID = 3;
 					break;
 				case 14:
@@ -9924,39 +9859,9 @@ static int decode_iso1BodyType(bitstream_t* stream, struct iso1BodyType* iso1Bod
 					iso1BodyType->CurrentDemandRes_isUsed = 1u;
 					grammarID = 3;
 					break;
-				case 15:
-					errn = decode_iso1MeteringReceiptReqType(stream, &iso1BodyType->MeteringReceiptReq);
-					iso1BodyType->MeteringReceiptReq_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 16:
-					errn = decode_iso1MeteringReceiptResType(stream, &iso1BodyType->MeteringReceiptRes);
-					iso1BodyType->MeteringReceiptRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 17:
-					errn = decode_iso1PaymentDetailsReqType(stream, &iso1BodyType->PaymentDetailsReq);
-					iso1BodyType->PaymentDetailsReq_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 18:
-					errn = decode_iso1PaymentDetailsResType(stream, &iso1BodyType->PaymentDetailsRes);
-					iso1BodyType->PaymentDetailsRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 19:
-					errn = decode_iso1PaymentServiceSelectionReqType(stream, &iso1BodyType->PaymentServiceSelectionReq);
-					iso1BodyType->PaymentServiceSelectionReq_isUsed = 1u;
-					grammarID = 3;
-					break;
 				case 20:
 					errn = decode_iso1PaymentServiceSelectionResType(stream, &iso1BodyType->PaymentServiceSelectionRes);
 					iso1BodyType->PaymentServiceSelectionRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 21:
-					errn = decode_iso1PowerDeliveryReqType(stream, &iso1BodyType->PowerDeliveryReq);
-					iso1BodyType->PowerDeliveryReq_isUsed = 1u;
 					grammarID = 3;
 					break;
 				case 22:
@@ -9964,29 +9869,9 @@ static int decode_iso1BodyType(bitstream_t* stream, struct iso1BodyType* iso1Bod
 					iso1BodyType->PowerDeliveryRes_isUsed = 1u;
 					grammarID = 3;
 					break;
-				case 23:
-					errn = decode_iso1PreChargeReqType(stream, &iso1BodyType->PreChargeReq);
-					iso1BodyType->PreChargeReq_isUsed = 1u;
-					grammarID = 3;
-					break;
 				case 24:
 					errn = decode_iso1PreChargeResType(stream, &iso1BodyType->PreChargeRes);
 					iso1BodyType->PreChargeRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 25:
-					errn = decode_iso1ServiceDetailReqType(stream, &iso1BodyType->ServiceDetailReq);
-					iso1BodyType->ServiceDetailReq_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 26:
-					errn = decode_iso1ServiceDetailResType(stream, &iso1BodyType->ServiceDetailRes);
-					iso1BodyType->ServiceDetailRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 27:
-					errn = decode_iso1ServiceDiscoveryReqType(stream, &iso1BodyType->ServiceDiscoveryReq);
-					iso1BodyType->ServiceDiscoveryReq_isUsed = 1u;
 					grammarID = 3;
 					break;
 				case 28:
@@ -9994,29 +9879,14 @@ static int decode_iso1BodyType(bitstream_t* stream, struct iso1BodyType* iso1Bod
 					iso1BodyType->ServiceDiscoveryRes_isUsed = 1u;
 					grammarID = 3;
 					break;
-				case 29:
-					errn = decode_iso1SessionSetupReqType(stream, &iso1BodyType->SessionSetupReq);
-					iso1BodyType->SessionSetupReq_isUsed = 1u;
-					grammarID = 3;
-					break;
 				case 30:
 					errn = decode_iso1SessionSetupResType(stream, &iso1BodyType->SessionSetupRes);
 					iso1BodyType->SessionSetupRes_isUsed = 1u;
 					grammarID = 3;
 					break;
-				case 31:
-					errn = decode_iso1SessionStopReqType(stream, &iso1BodyType->SessionStopReq);
-					iso1BodyType->SessionStopReq_isUsed = 1u;
-					grammarID = 3;
-					break;
 				case 32:
 					errn = decode_iso1SessionStopResType(stream, &iso1BodyType->SessionStopRes);
 					iso1BodyType->SessionStopRes_isUsed = 1u;
-					grammarID = 3;
-					break;
-				case 33:
-					errn = decode_iso1WeldingDetectionReqType(stream, &iso1BodyType->WeldingDetectionReq);
-					iso1BodyType->WeldingDetectionReq_isUsed = 1u;
 					grammarID = 3;
 					break;
 				case 34:
@@ -16503,456 +16373,10 @@ int decode_iso1ExiDocument(bitstream_t* stream, struct iso1EXIDocument* exiDoc) 
 		errn = decodeNBitUnsignedInteger(stream, 7, &eventCode);
 		if(errn == 0) {
 			switch(eventCode) {
-			case 0:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}AC_EVChargeParameter) */
-				errn = decode_iso1AC_EVChargeParameterType(stream, &exiDoc->AC_EVChargeParameter);
-				exiDoc->AC_EVChargeParameter_isUsed = 1u;
-				break;
-			case 1:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}AC_EVSEChargeParameter) */
-				errn = decode_iso1AC_EVSEChargeParameterType(stream, &exiDoc->AC_EVSEChargeParameter);
-				exiDoc->AC_EVSEChargeParameter_isUsed = 1u;
-				break;
-			case 2:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}AC_EVSEStatus) */
-				errn = decode_iso1AC_EVSEStatusType(stream, &exiDoc->AC_EVSEStatus);
-				exiDoc->AC_EVSEStatus_isUsed = 1u;
-				break;
-			case 3:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}AuthorizationReq) */
-				errn = decode_iso1AuthorizationReqType(stream, &exiDoc->AuthorizationReq);
-				exiDoc->AuthorizationReq_isUsed = 1u;
-				break;
-			case 4:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}AuthorizationRes) */
-				errn = decode_iso1AuthorizationResType(stream, &exiDoc->AuthorizationRes);
-				exiDoc->AuthorizationRes_isUsed = 1u;
-				break;
-			case 5:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}BodyElement) */
-				errn = decode_iso1BodyBaseType(stream, &exiDoc->BodyElement);
-				exiDoc->BodyElement_isUsed = 1u;
-				break;
-			case 6:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}CableCheckReq) */
-				errn = decode_iso1CableCheckReqType(stream, &exiDoc->CableCheckReq);
-				exiDoc->CableCheckReq_isUsed = 1u;
-				break;
-			case 7:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}CableCheckRes) */
-				errn = decode_iso1CableCheckResType(stream, &exiDoc->CableCheckRes);
-				exiDoc->CableCheckRes_isUsed = 1u;
-				break;
-			case 8:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}CanonicalizationMethod) */
-				errn = decode_iso1CanonicalizationMethodType(stream, &exiDoc->CanonicalizationMethod);
-				exiDoc->CanonicalizationMethod_isUsed = 1u;
-				break;
-			case 9:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}CertificateInstallationReq) */
-				errn = decode_iso1CertificateInstallationReqType(stream, &exiDoc->CertificateInstallationReq);
-				exiDoc->CertificateInstallationReq_isUsed = 1u;
-				break;
-			case 10:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}CertificateInstallationRes) */
-				errn = decode_iso1CertificateInstallationResType(stream, &exiDoc->CertificateInstallationRes);
-				exiDoc->CertificateInstallationRes_isUsed = 1u;
-				break;
-			case 11:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}CertificateUpdateReq) */
-				errn = decode_iso1CertificateUpdateReqType(stream, &exiDoc->CertificateUpdateReq);
-				exiDoc->CertificateUpdateReq_isUsed = 1u;
-				break;
-			case 12:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}CertificateUpdateRes) */
-				errn = decode_iso1CertificateUpdateResType(stream, &exiDoc->CertificateUpdateRes);
-				exiDoc->CertificateUpdateRes_isUsed = 1u;
-				break;
-			case 13:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}ChargeParameterDiscoveryReq) */
-				errn = decode_iso1ChargeParameterDiscoveryReqType(stream, &exiDoc->ChargeParameterDiscoveryReq);
-				exiDoc->ChargeParameterDiscoveryReq_isUsed = 1u;
-				break;
-			case 14:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}ChargeParameterDiscoveryRes) */
-				errn = decode_iso1ChargeParameterDiscoveryResType(stream, &exiDoc->ChargeParameterDiscoveryRes);
-				exiDoc->ChargeParameterDiscoveryRes_isUsed = 1u;
-				break;
-			case 15:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}ChargingStatusReq) */
-				errn = decode_iso1ChargingStatusReqType(stream, &exiDoc->ChargingStatusReq);
-				exiDoc->ChargingStatusReq_isUsed = 1u;
-				break;
-			case 16:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}ChargingStatusRes) */
-				errn = decode_iso1ChargingStatusResType(stream, &exiDoc->ChargingStatusRes);
-				exiDoc->ChargingStatusRes_isUsed = 1u;
-				break;
-			case 17:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}CurrentDemandReq) */
-				errn = decode_iso1CurrentDemandReqType(stream, &exiDoc->CurrentDemandReq);
-				exiDoc->CurrentDemandReq_isUsed = 1u;
-				break;
-			case 18:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}CurrentDemandRes) */
-				errn = decode_iso1CurrentDemandResType(stream, &exiDoc->CurrentDemandRes);
-				exiDoc->CurrentDemandRes_isUsed = 1u;
-				break;
-			case 19:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}DC_EVChargeParameter) */
-				errn = decode_iso1DC_EVChargeParameterType(stream, &exiDoc->DC_EVChargeParameter);
-				exiDoc->DC_EVChargeParameter_isUsed = 1u;
-				break;
-			case 20:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}DC_EVPowerDeliveryParameter) */
-				errn = decode_iso1DC_EVPowerDeliveryParameterType(stream, &exiDoc->DC_EVPowerDeliveryParameter);
-				exiDoc->DC_EVPowerDeliveryParameter_isUsed = 1u;
-				break;
-			case 21:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}DC_EVSEChargeParameter) */
-				errn = decode_iso1DC_EVSEChargeParameterType(stream, &exiDoc->DC_EVSEChargeParameter);
-				exiDoc->DC_EVSEChargeParameter_isUsed = 1u;
-				break;
-			case 22:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}DC_EVSEStatus) */
-				errn = decode_iso1DC_EVSEStatusType(stream, &exiDoc->DC_EVSEStatus);
-				exiDoc->DC_EVSEStatus_isUsed = 1u;
-				break;
-			case 23:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}DC_EVStatus) */
-				errn = decode_iso1DC_EVStatusType(stream, &exiDoc->DC_EVStatus);
-				exiDoc->DC_EVStatus_isUsed = 1u;
-				break;
-			case 24:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}DSAKeyValue) */
-				errn = decode_iso1DSAKeyValueType(stream, &exiDoc->DSAKeyValue);
-				exiDoc->DSAKeyValue_isUsed = 1u;
-				break;
-			case 25:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}DigestMethod) */
-				errn = decode_iso1DigestMethodType(stream, &exiDoc->DigestMethod);
-				exiDoc->DigestMethod_isUsed = 1u;
-				break;
-			case 26:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}DigestValue) */
-				/* FirstStartTag[CHARACTERS[BINARY_BASE64]] */
-				errn = decodeNBitUnsignedInteger(stream, 1, &eventCode);
-				if(errn == 0) {
-					if(eventCode == 0) {
-						errn = decodeUnsignedInteger16(stream, &exiDoc->DigestValue.bytesLen);
-						if (errn == 0) {
-							errn =  (exiDoc->DigestValue.bytesLen) <= iso1EXIDocument_DigestValue_BYTES_SIZE ? 0 : EXI_ERROR_OUT_OF_BYTE_BUFFER;
-						}
-						if (errn == 0) {
-							errn = decodeBytes(stream, exiDoc->DigestValue.bytesLen, exiDoc->DigestValue.bytes);
-						}
-						exiDoc->DigestValue_isUsed = 1u;
-					} else {
-						/* Second level event (e.g., xsi:type, xsi:nil, ...) */
-						errn = EXI_UNSUPPORTED_EVENT_CODE_CHARACTERISTICS;
-					}
-				}
-				break;
-			case 27:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}EVChargeParameter) */
-				errn = decode_iso1EVChargeParameterType(stream, &exiDoc->EVChargeParameter);
-				exiDoc->EVChargeParameter_isUsed = 1u;
-				break;
-			case 28:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}EVPowerDeliveryParameter) */
-				errn = decode_iso1EVPowerDeliveryParameterType(stream, &exiDoc->EVPowerDeliveryParameter);
-				exiDoc->EVPowerDeliveryParameter_isUsed = 1u;
-				break;
-			case 29:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}EVSEChargeParameter) */
-				errn = decode_iso1EVSEChargeParameterType(stream, &exiDoc->EVSEChargeParameter);
-				exiDoc->EVSEChargeParameter_isUsed = 1u;
-				break;
-			case 30:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}EVSEStatus) */
-				errn = decode_iso1EVSEStatusType(stream, &exiDoc->EVSEStatus);
-				exiDoc->EVSEStatus_isUsed = 1u;
-				break;
-			case 31:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}EVStatus) */
-				errn = decode_iso1EVStatusType(stream, &exiDoc->EVStatus);
-				exiDoc->EVStatus_isUsed = 1u;
-				break;
-			case 32:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}Entry) */
-				errn = decode_iso1EntryType(stream, &exiDoc->Entry);
-				exiDoc->Entry_isUsed = 1u;
-				break;
-			case 33:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}KeyInfo) */
-				errn = decode_iso1KeyInfoType(stream, &exiDoc->KeyInfo);
-				exiDoc->KeyInfo_isUsed = 1u;
-				break;
-			case 34:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}KeyName) */
-				/* First(xsi:type)StartTag[CHARACTERS[STRING]] */
-				errn = decodeNBitUnsignedInteger(stream, 1, &eventCode);
-				if(errn == 0) {
-					if(eventCode == 0) {
-						errn = decodeUnsignedInteger16(stream, &exiDoc->KeyName.charactersLen);
-						if (errn == 0) {
-							if (exiDoc->KeyName.charactersLen >= 2) {
-								exiDoc->KeyName.charactersLen = (uint16_t)(exiDoc->KeyName.charactersLen - 2); /* string table miss */
-								errn = decodeCharacters(stream, exiDoc->KeyName.charactersLen, exiDoc->KeyName.characters, iso1EXIDocument_KeyName_CHARACTERS_SIZE);
-							} else {
-								/* string table hit */
-								errn = EXI_ERROR_STRINGVALUES_NOT_SUPPORTED;
-							}
-						}
-						exiDoc->KeyName_isUsed = 1u;
-					} else {
-						/* Second level event (e.g., xsi:type, xsi:nil, ...) */
-						errn = EXI_UNSUPPORTED_EVENT_CODE_CHARACTERISTICS;
-					}
-				}
-				break;
-			case 35:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}KeyValue) */
-				errn = decode_iso1KeyValueType(stream, &exiDoc->KeyValue);
-				exiDoc->KeyValue_isUsed = 1u;
-				break;
-			case 36:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}Manifest) */
-				errn = decode_iso1ManifestType(stream, &exiDoc->Manifest);
-				exiDoc->Manifest_isUsed = 1u;
-				break;
-			case 37:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}MeteringReceiptReq) */
-				errn = decode_iso1MeteringReceiptReqType(stream, &exiDoc->MeteringReceiptReq);
-				exiDoc->MeteringReceiptReq_isUsed = 1u;
-				break;
-			case 38:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}MeteringReceiptRes) */
-				errn = decode_iso1MeteringReceiptResType(stream, &exiDoc->MeteringReceiptRes);
-				exiDoc->MeteringReceiptRes_isUsed = 1u;
-				break;
-			case 39:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}MgmtData) */
-				/* First(xsi:type)StartTag[CHARACTERS[STRING]] */
-				errn = decodeNBitUnsignedInteger(stream, 1, &eventCode);
-				if(errn == 0) {
-					if(eventCode == 0) {
-						errn = decodeUnsignedInteger16(stream, &exiDoc->MgmtData.charactersLen);
-						if (errn == 0) {
-							if (exiDoc->MgmtData.charactersLen >= 2) {
-								exiDoc->MgmtData.charactersLen = (uint16_t)(exiDoc->MgmtData.charactersLen - 2); /* string table miss */
-								errn = decodeCharacters(stream, exiDoc->MgmtData.charactersLen, exiDoc->MgmtData.characters, iso1EXIDocument_MgmtData_CHARACTERS_SIZE);
-							} else {
-								/* string table hit */
-								errn = EXI_ERROR_STRINGVALUES_NOT_SUPPORTED;
-							}
-						}
-						exiDoc->MgmtData_isUsed = 1u;
-					} else {
-						/* Second level event (e.g., xsi:type, xsi:nil, ...) */
-						errn = EXI_UNSUPPORTED_EVENT_CODE_CHARACTERISTICS;
-					}
-				}
-				break;
-			case 40:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}Object) */
-				errn = decode_iso1ObjectType(stream, &exiDoc->Object);
-				exiDoc->Object_isUsed = 1u;
-				break;
-			case 41:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}PGPData) */
-				errn = decode_iso1PGPDataType(stream, &exiDoc->PGPData);
-				exiDoc->PGPData_isUsed = 1u;
-				break;
-			case 42:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}PMaxScheduleEntry) */
-				errn = decode_iso1PMaxScheduleEntryType(stream, &exiDoc->PMaxScheduleEntry);
-				exiDoc->PMaxScheduleEntry_isUsed = 1u;
-				break;
-			case 43:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}PaymentDetailsReq) */
-				errn = decode_iso1PaymentDetailsReqType(stream, &exiDoc->PaymentDetailsReq);
-				exiDoc->PaymentDetailsReq_isUsed = 1u;
-				break;
-			case 44:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}PaymentDetailsRes) */
-				errn = decode_iso1PaymentDetailsResType(stream, &exiDoc->PaymentDetailsRes);
-				exiDoc->PaymentDetailsRes_isUsed = 1u;
-				break;
-			case 45:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}PaymentServiceSelectionReq) */
-				errn = decode_iso1PaymentServiceSelectionReqType(stream, &exiDoc->PaymentServiceSelectionReq);
-				exiDoc->PaymentServiceSelectionReq_isUsed = 1u;
-				break;
-			case 46:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}PaymentServiceSelectionRes) */
-				errn = decode_iso1PaymentServiceSelectionResType(stream, &exiDoc->PaymentServiceSelectionRes);
-				exiDoc->PaymentServiceSelectionRes_isUsed = 1u;
-				break;
-			case 47:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}PowerDeliveryReq) */
-				errn = decode_iso1PowerDeliveryReqType(stream, &exiDoc->PowerDeliveryReq);
-				exiDoc->PowerDeliveryReq_isUsed = 1u;
-				break;
-			case 48:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}PowerDeliveryRes) */
-				errn = decode_iso1PowerDeliveryResType(stream, &exiDoc->PowerDeliveryRes);
-				exiDoc->PowerDeliveryRes_isUsed = 1u;
-				break;
-			case 49:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}PreChargeReq) */
-				errn = decode_iso1PreChargeReqType(stream, &exiDoc->PreChargeReq);
-				exiDoc->PreChargeReq_isUsed = 1u;
-				break;
-			case 50:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}PreChargeRes) */
-				errn = decode_iso1PreChargeResType(stream, &exiDoc->PreChargeRes);
-				exiDoc->PreChargeRes_isUsed = 1u;
-				break;
-			case 51:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}RSAKeyValue) */
-				errn = decode_iso1RSAKeyValueType(stream, &exiDoc->RSAKeyValue);
-				exiDoc->RSAKeyValue_isUsed = 1u;
-				break;
-			case 52:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}Reference) */
-				errn = decode_iso1ReferenceType(stream, &exiDoc->Reference);
-				exiDoc->Reference_isUsed = 1u;
-				break;
-			case 53:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}RelativeTimeInterval) */
-				errn = decode_iso1RelativeTimeIntervalType(stream, &exiDoc->RelativeTimeInterval);
-				exiDoc->RelativeTimeInterval_isUsed = 1u;
-				break;
-			case 54:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}RetrievalMethod) */
-				errn = decode_iso1RetrievalMethodType(stream, &exiDoc->RetrievalMethod);
-				exiDoc->RetrievalMethod_isUsed = 1u;
-				break;
-			case 55:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}SAScheduleList) */
-				errn = decode_iso1SAScheduleListType(stream, &exiDoc->SAScheduleList);
-				exiDoc->SAScheduleList_isUsed = 1u;
-				break;
-			case 56:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}SASchedules) */
-				errn = decode_iso1SASchedulesType(stream, &exiDoc->SASchedules);
-				exiDoc->SASchedules_isUsed = 1u;
-				break;
-			case 57:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}SPKIData) */
-				errn = decode_iso1SPKIDataType(stream, &exiDoc->SPKIData);
-				exiDoc->SPKIData_isUsed = 1u;
-				break;
-			case 58:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}SalesTariffEntry) */
-				errn = decode_iso1SalesTariffEntryType(stream, &exiDoc->SalesTariffEntry);
-				exiDoc->SalesTariffEntry_isUsed = 1u;
-				break;
-			case 59:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}ServiceDetailReq) */
-				errn = decode_iso1ServiceDetailReqType(stream, &exiDoc->ServiceDetailReq);
-				exiDoc->ServiceDetailReq_isUsed = 1u;
-				break;
-			case 60:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}ServiceDetailRes) */
-				errn = decode_iso1ServiceDetailResType(stream, &exiDoc->ServiceDetailRes);
-				exiDoc->ServiceDetailRes_isUsed = 1u;
-				break;
-			case 61:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}ServiceDiscoveryReq) */
-				errn = decode_iso1ServiceDiscoveryReqType(stream, &exiDoc->ServiceDiscoveryReq);
-				exiDoc->ServiceDiscoveryReq_isUsed = 1u;
-				break;
-			case 62:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}ServiceDiscoveryRes) */
-				errn = decode_iso1ServiceDiscoveryResType(stream, &exiDoc->ServiceDiscoveryRes);
-				exiDoc->ServiceDiscoveryRes_isUsed = 1u;
-				break;
-			case 63:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}SessionSetupReq) */
-				errn = decode_iso1SessionSetupReqType(stream, &exiDoc->SessionSetupReq);
-				exiDoc->SessionSetupReq_isUsed = 1u;
-				break;
-			case 64:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}SessionSetupRes) */
-				errn = decode_iso1SessionSetupResType(stream, &exiDoc->SessionSetupRes);
-				exiDoc->SessionSetupRes_isUsed = 1u;
-				break;
-			case 65:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}SessionStopReq) */
-				errn = decode_iso1SessionStopReqType(stream, &exiDoc->SessionStopReq);
-				exiDoc->SessionStopReq_isUsed = 1u;
-				break;
-			case 66:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}SessionStopRes) */
-				errn = decode_iso1SessionStopResType(stream, &exiDoc->SessionStopRes);
-				exiDoc->SessionStopRes_isUsed = 1u;
-				break;
-			case 67:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}Signature) */
-				errn = decode_iso1SignatureType(stream, &exiDoc->Signature);
-				exiDoc->Signature_isUsed = 1u;
-				break;
-			case 68:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}SignatureMethod) */
-				errn = decode_iso1SignatureMethodType(stream, &exiDoc->SignatureMethod);
-				exiDoc->SignatureMethod_isUsed = 1u;
-				break;
-			case 69:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}SignatureProperties) */
-				errn = decode_iso1SignaturePropertiesType(stream, &exiDoc->SignatureProperties);
-				exiDoc->SignatureProperties_isUsed = 1u;
-				break;
-			case 70:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}SignatureProperty) */
-				errn = decode_iso1SignaturePropertyType(stream, &exiDoc->SignatureProperty);
-				exiDoc->SignatureProperty_isUsed = 1u;
-				break;
-			case 71:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}SignatureValue) */
-				errn = decode_iso1SignatureValueType(stream, &exiDoc->SignatureValue);
-				exiDoc->SignatureValue_isUsed = 1u;
-				break;
-			case 72:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}SignedInfo) */
-				errn = decode_iso1SignedInfoType(stream, &exiDoc->SignedInfo);
-				exiDoc->SignedInfo_isUsed = 1u;
-				break;
-			case 73:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDataTypes}TimeInterval) */
-				errn = decode_iso1IntervalType(stream, &exiDoc->TimeInterval);
-				exiDoc->TimeInterval_isUsed = 1u;
-				break;
-			case 74:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}Transform) */
-				errn = decode_iso1TransformType(stream, &exiDoc->Transform);
-				exiDoc->Transform_isUsed = 1u;
-				break;
-			case 75:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}Transforms) */
-				errn = decode_iso1TransformsType(stream, &exiDoc->Transforms);
-				exiDoc->Transforms_isUsed = 1u;
-				break;
 			case 76:
 				/* START_ELEMENT({urn:iso:15118:2:2013:MsgDef}V2G_Message) */
 				errn = decode_iso1AnonType_V2G_Message(stream, &exiDoc->V2G_Message);
 				exiDoc->V2G_Message_isUsed = 1u;
-				break;
-			case 77:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}WeldingDetectionReq) */
-				errn = decode_iso1WeldingDetectionReqType(stream, &exiDoc->WeldingDetectionReq);
-				exiDoc->WeldingDetectionReq_isUsed = 1u;
-				break;
-			case 78:
-				/* START_ELEMENT({urn:iso:15118:2:2013:MsgBody}WeldingDetectionRes) */
-				errn = decode_iso1WeldingDetectionResType(stream, &exiDoc->WeldingDetectionRes);
-				exiDoc->WeldingDetectionRes_isUsed = 1u;
-				break;
-			case 79:
-				/* START_ELEMENT({http://www.w3.org/2000/09/xmldsig#}X509Data) */
-				errn = decode_iso1X509DataType(stream, &exiDoc->X509Data);
-				exiDoc->X509Data_isUsed = 1u;
 				break;
 			default:
 				errn = EXI_ERROR_UNEXPECTED_EVENT_LEVEL1;

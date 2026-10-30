@@ -43,85 +43,6 @@
 
 void init_iso1EXIDocument(struct iso1EXIDocument* exiDoc) {
 	exiDoc->V2G_Message_isUsed = 0u;
-	exiDoc->ServiceDiscoveryReq_isUsed = 0u;
-	exiDoc->ServiceDiscoveryRes_isUsed = 0u;
-	exiDoc->MeteringReceiptReq_isUsed = 0u;
-	exiDoc->PaymentDetailsReq_isUsed = 0u;
-	exiDoc->MeteringReceiptRes_isUsed = 0u;
-	exiDoc->PaymentDetailsRes_isUsed = 0u;
-	exiDoc->SessionSetupReq_isUsed = 0u;
-	exiDoc->SessionSetupRes_isUsed = 0u;
-	exiDoc->CableCheckReq_isUsed = 0u;
-	exiDoc->CableCheckRes_isUsed = 0u;
-	exiDoc->CertificateInstallationReq_isUsed = 0u;
-	exiDoc->CertificateInstallationRes_isUsed = 0u;
-	exiDoc->WeldingDetectionReq_isUsed = 0u;
-	exiDoc->WeldingDetectionRes_isUsed = 0u;
-	exiDoc->CertificateUpdateReq_isUsed = 0u;
-	exiDoc->CertificateUpdateRes_isUsed = 0u;
-	exiDoc->PaymentServiceSelectionReq_isUsed = 0u;
-	exiDoc->PowerDeliveryReq_isUsed = 0u;
-	exiDoc->PaymentServiceSelectionRes_isUsed = 0u;
-	exiDoc->PowerDeliveryRes_isUsed = 0u;
-	exiDoc->ChargingStatusReq_isUsed = 0u;
-	exiDoc->ChargingStatusRes_isUsed = 0u;
-	exiDoc->BodyElement_isUsed = 0u;
-	exiDoc->CurrentDemandReq_isUsed = 0u;
-	exiDoc->PreChargeReq_isUsed = 0u;
-	exiDoc->CurrentDemandRes_isUsed = 0u;
-	exiDoc->PreChargeRes_isUsed = 0u;
-	exiDoc->SessionStopReq_isUsed = 0u;
-	exiDoc->AuthorizationReq_isUsed = 0u;
-	exiDoc->SessionStopRes_isUsed = 0u;
-	exiDoc->AuthorizationRes_isUsed = 0u;
-	exiDoc->ChargeParameterDiscoveryReq_isUsed = 0u;
-	exiDoc->ChargeParameterDiscoveryRes_isUsed = 0u;
-	exiDoc->ServiceDetailReq_isUsed = 0u;
-	exiDoc->ServiceDetailRes_isUsed = 0u;
-	exiDoc->DC_EVSEStatus_isUsed = 0u;
-	exiDoc->RelativeTimeInterval_isUsed = 0u;
-	exiDoc->SalesTariffEntry_isUsed = 0u;
-	exiDoc->DC_EVPowerDeliveryParameter_isUsed = 0u;
-	exiDoc->SASchedules_isUsed = 0u;
-	exiDoc->AC_EVChargeParameter_isUsed = 0u;
-	exiDoc->SAScheduleList_isUsed = 0u;
-	exiDoc->DC_EVStatus_isUsed = 0u;
-	exiDoc->EVStatus_isUsed = 0u;
-	exiDoc->DC_EVChargeParameter_isUsed = 0u;
-	exiDoc->DC_EVSEChargeParameter_isUsed = 0u;
-	exiDoc->EVSEStatus_isUsed = 0u;
-	exiDoc->TimeInterval_isUsed = 0u;
-	exiDoc->EVPowerDeliveryParameter_isUsed = 0u;
-	exiDoc->EVSEChargeParameter_isUsed = 0u;
-	exiDoc->AC_EVSEStatus_isUsed = 0u;
-	exiDoc->Entry_isUsed = 0u;
-	exiDoc->AC_EVSEChargeParameter_isUsed = 0u;
-	exiDoc->PMaxScheduleEntry_isUsed = 0u;
-	exiDoc->EVChargeParameter_isUsed = 0u;
-	exiDoc->SignatureProperty_isUsed = 0u;
-	exiDoc->DSAKeyValue_isUsed = 0u;
-	exiDoc->SignatureProperties_isUsed = 0u;
-	exiDoc->KeyValue_isUsed = 0u;
-	exiDoc->Transforms_isUsed = 0u;
-	exiDoc->DigestMethod_isUsed = 0u;
-	exiDoc->Signature_isUsed = 0u;
-	exiDoc->RetrievalMethod_isUsed = 0u;
-	exiDoc->Manifest_isUsed = 0u;
-	exiDoc->Reference_isUsed = 0u;
-	exiDoc->CanonicalizationMethod_isUsed = 0u;
-	exiDoc->RSAKeyValue_isUsed = 0u;
-	exiDoc->Transform_isUsed = 0u;
-	exiDoc->PGPData_isUsed = 0u;
-	exiDoc->MgmtData_isUsed = 0u;
-	exiDoc->SignatureMethod_isUsed = 0u;
-	exiDoc->KeyInfo_isUsed = 0u;
-	exiDoc->SPKIData_isUsed = 0u;
-	exiDoc->X509Data_isUsed = 0u;
-	exiDoc->SignatureValue_isUsed = 0u;
-	exiDoc->KeyName_isUsed = 0u;
-	exiDoc->DigestValue_isUsed = 0u;
-	exiDoc->SignedInfo_isUsed = 0u;
-	exiDoc->Object_isUsed = 0u;
 }
 
 
@@ -436,7 +357,6 @@ void init_iso1EXISchemaInformedElementFragmentGrammar(struct iso1EXISchemaInform
 
 void init_iso1MessageHeaderType(struct iso1MessageHeaderType* iso1MessageHeaderType) {
 	iso1MessageHeaderType->Notification_isUsed = 0u;
-	iso1MessageHeaderType->Signature_isUsed = 0u;
 }
 
 void init_iso1SignatureType(struct iso1SignatureType* iso1SignatureType) {
@@ -747,33 +667,20 @@ void init_iso1SAScheduleListType(struct iso1SAScheduleListType* iso1SAScheduleLi
 }
 
 void init_iso1BodyType(struct iso1BodyType* iso1BodyType) {
-	iso1BodyType->BodyElement_isUsed = 0u;
 	iso1BodyType->SessionSetupReq_isUsed = 0u;
 	iso1BodyType->SessionSetupRes_isUsed = 0u;
 	iso1BodyType->ServiceDiscoveryReq_isUsed = 0u;
 	iso1BodyType->ServiceDiscoveryRes_isUsed = 0u;
-	iso1BodyType->ServiceDetailReq_isUsed = 0u;
-	iso1BodyType->ServiceDetailRes_isUsed = 0u;
 	iso1BodyType->PaymentServiceSelectionReq_isUsed = 0u;
 	iso1BodyType->PaymentServiceSelectionRes_isUsed = 0u;
-	iso1BodyType->PaymentDetailsReq_isUsed = 0u;
-	iso1BodyType->PaymentDetailsRes_isUsed = 0u;
 	iso1BodyType->AuthorizationReq_isUsed = 0u;
 	iso1BodyType->AuthorizationRes_isUsed = 0u;
 	iso1BodyType->ChargeParameterDiscoveryReq_isUsed = 0u;
 	iso1BodyType->ChargeParameterDiscoveryRes_isUsed = 0u;
 	iso1BodyType->PowerDeliveryReq_isUsed = 0u;
 	iso1BodyType->PowerDeliveryRes_isUsed = 0u;
-	iso1BodyType->MeteringReceiptReq_isUsed = 0u;
-	iso1BodyType->MeteringReceiptRes_isUsed = 0u;
 	iso1BodyType->SessionStopReq_isUsed = 0u;
 	iso1BodyType->SessionStopRes_isUsed = 0u;
-	iso1BodyType->CertificateUpdateReq_isUsed = 0u;
-	iso1BodyType->CertificateUpdateRes_isUsed = 0u;
-	iso1BodyType->CertificateInstallationReq_isUsed = 0u;
-	iso1BodyType->CertificateInstallationRes_isUsed = 0u;
-	iso1BodyType->ChargingStatusReq_isUsed = 0u;
-	iso1BodyType->ChargingStatusRes_isUsed = 0u;
 	iso1BodyType->CableCheckReq_isUsed = 0u;
 	iso1BodyType->CableCheckRes_isUsed = 0u;
 	iso1BodyType->PreChargeReq_isUsed = 0u;
