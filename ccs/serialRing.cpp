@@ -5,24 +5,39 @@
    several answers) is held up for tens of ms, and with libopeninv's scheduler an overrunning task then isn't run
    again for 655 ms.
 
-   RingTerminal::PutChar collects each line (one buffer for the main loop, one for interrupts: only the scheduler's
-   interrupt prints) and puts whole lines into a ring buffer. DMA2 channel 5 sends the ring to UART4, and its interrupt
-   starts the next piece. A writer never waits: a line that doesn't fit is dropped whole and counted, and once a second
-   a line says how many were dropped.
+   RingTerminal::PutChar collects each line (one buffer for the main loop, one for interrupt context) and puts it into
+   a ring buffer. DMA2 channel 5 sends the ring to UART4, and its interrupt starts the next piece.
+   - Interrupt context (the scheduler's tasks) never waits: a line that doesn't fit is dropped whole and counted, and
+     once a second a line says how many were dropped.
+   - The main loop (terminal commands, and their replies such as "json") waits for room instead, so its output
+     arrives complete and unchanged, as with libopeninv's Terminal. A line longer than LINE_LEN goes into the ring in
+     pieces; an interrupt's line can land between two pieces of a long main-loop line, as it could with libopeninv's
+     Terminal, but never inside a piece and never inside another line.
 
-   Long lines. A line longer than LINE_LEN goes into the ring in pieces. For the scheduler's interrupt that is safe:
-   nothing else can write between the pieces of its line. The main loop's line can be interrupted by the scheduler's
-   lines, which would land inside it, so a main-loop line that long (only terminal commands print one) is wrapped
-   instead: each piece is ended with "\r\n" as a line of its own.
+   One DMA channel, two users. libopeninv's Terminal still sends some text itself on DMA2 channel 5: its replies to
+   unknown commands, "fastuart", "echo" and "enableuart", and binary output (SendBinary, "stream"). Before each send it
+   waits for the channel's transfer-complete flag (TCIF), then disables the channel, programs it, clears TCIF and
+   enables it. The ring keeps to that protocol, so the two don't program the channel over each other:
+   - The ring's interrupt is enabled (TCIE) only while the ring needs it: during its own transfer, or while it waits
+     for one of Terminal's to finish. When the ring has nothing more to send, it disables TCIE and leaves TCIF set, so
+     that Terminal's next send can go. It clears TCIF only to start a transfer of its own.
+   - The ring starts a transfer only when the channel is free: enabled with nothing left to send (the last transfer,
+     the ring's or Terminal's, is complete). A disabled channel, after the ring's first transfer, means Terminal is
+     programming it: the ring leaves it alone, and is started again by its next write or the 100 ms task.
+   - If Terminal's transfer is under way, the ring waits for its completion interrupt.
+   - The interrupt checks that a completed transfer was the ring's own (its memory address) before it moves the ring
+     on.
+   What remains: if the scheduler's interrupt starts a ring transfer in the few instructions between Terminal seeing
+   TCIF and disabling the channel, Terminal's send aborts it; the ring then sends that piece again, so some bytes can
+   appear twice. The terminal's echo of typed characters (usart_send_blocking, not DMA) still goes straight to the
+   UART and can land inside a line, as before.
 
    Masking. The ring is shared by the main loop, the scheduler's interrupt (priority 0xE0) and this DMA interrupt
-   (0xD0). Writers raise BASEPRI to 0xD0 while they copy a line into the ring (a few us), which holds off those
-   interrupts and the SPI DMA interrupt, but not CAN.
+   (0xD0). Writers raise BASEPRI to 0xD0 while they copy a line into the ring (a few us), which holds off every
+   interrupt of priority 0xD0 and lower: this one, the SPI DMA interrupt, the scheduler and CAN (0xF0).
 
-   Not through the ring: the terminal's input echo and its own replies to unknown commands, and binary output
-   (SendBinary). They use the same DMA channel directly, so typing on the terminal can garble a line in transit.
-
-   test/serialRing builds this file on a PC, with the DMA and the interrupts simulated (make -C test/serialRing run). */
+   test/serialRing builds this file on a PC, with the DMA, the interrupts and Terminal's own sends simulated
+   (make -C test/serialRing run). */
 
 #ifdef SERIALRING_HOST_TEST
 #include "serialRing_hosttest.h" /* test/serialRing: the DMA, the masking and the clocks, simulated */
@@ -41,7 +56,8 @@
 static uint8_t ring[LOG_RING];
 static volatile uint16_t head;   /* next byte written */
 static volatile uint16_t tail;   /* next byte sent */
-static volatile uint16_t dmaLen; /* bytes the DMA is sending from tail; 0 when idle */
+static volatile uint16_t dmaLen; /* bytes of the ring's transfer from tail; 0 when the ring has none under way */
+static volatile uint8_t started; /* the ring has used the channel at least once */
 
 struct LineBuf
 {
@@ -49,8 +65,9 @@ struct LineBuf
    uint8_t len;
    uint8_t continued; /* a piece of this line has already gone into the ring */
    uint8_t broken;    /* a piece didn't fit: the rest of the line is discarded */
-   uint8_t dropLf;    /* a wrapped piece ended with the line's "\r": its "\n" is already written */
 };
+/* mainLine: the main loop. isrLine: every interrupt context. Sharing isrLine is safe only while the scheduler's
+   interrupt (TIM4) is the only interrupt that prints: another one could interrupt it halfway through a line. */
 static LineBuf mainLine, isrLine;
 
 static uint32_t droppedTotal;   /* lines dropped since power-on */
@@ -78,6 +95,29 @@ static inline uint32_t currentIpsr(void)
    __asm__ volatile ("mrs %0, ipsr" : "=r"(ipsr));
    return ipsr;
 }
+
+/* 1 if all interrupts are disabled (PRIMASK): then nothing can drain the ring, so the main loop mustn't wait. */
+static inline uint32_t interruptsDisabled(void)
+{
+   uint32_t primask;
+   __asm__ volatile ("mrs %0, primask" : "=r"(primask));
+   return primask & 1;
+}
+
+static inline uint8_t dmaEnabled(void)
+{
+   return (DMA_CCR(DMA2, DMA_CHANNEL5) & DMA_CCR_EN) != 0;
+}
+
+static inline uint16_t dmaRemaining(void)
+{
+   return (uint16_t)DMA_CNDTR(DMA2, DMA_CHANNEL5);
+}
+
+static inline uint32_t dmaMemoryAddress(void)
+{
+   return DMA_CMAR(DMA2, DMA_CHANNEL5);
+}
 #endif
 
 static inline uint16_t ringUsed(void)
@@ -85,13 +125,22 @@ static inline uint16_t ringUsed(void)
    return (uint16_t)((head + LOG_RING - tail) % LOG_RING);
 }
 
-/* Starts the DMA on the next contiguous piece of the ring, if it is idle. Called masked, or from its interrupt. */
+/* Starts the ring's next contiguous piece, if the ring has something to send and the channel is free (see above).
+   Called masked, or from the DMA interrupt. */
 static void startDma(void)
 {
    uint16_t h = head, t = tail, n;
 
    if (dmaLen != 0 || h == t)
       return;
+   if (dmaEnabled() ? dmaRemaining() != 0 : started)
+   {
+      /* Terminal's transfer is under way: its completion interrupt starts the ring. (A disabled channel: Terminal is
+         programming it; the ring is started by its next write or the 100 ms task.) */
+      if (dmaEnabled())
+         dma_enable_transfer_complete_interrupt(DMA2, DMA_CHANNEL5);
+      return;
+   }
    n = h > t ? h - t : LOG_RING - t;
    dma_disable_channel(DMA2, DMA_CHANNEL5);
    dma_set_memory_address(DMA2, DMA_CHANNEL5, (uint32_t)(uintptr_t)&ring[t]);
@@ -99,17 +148,26 @@ static void startDma(void)
    dma_clear_interrupt_flags(DMA2, DMA_CHANNEL5, DMA_TCIF);
    dma_enable_transfer_complete_interrupt(DMA2, DMA_CHANNEL5);
    dmaLen = n;
+   started = 1;
    dma_enable_channel(DMA2, DMA_CHANNEL5);
 }
 
 extern "C" void dma2_channel4_5_isr(void)
 {
-   if (dma_get_interrupt_flag(DMA2, DMA_CHANNEL5, DMA_TCIF))
+   if (!dma_get_interrupt_flag(DMA2, DMA_CHANNEL5, DMA_TCIF))
+      return;
+   if (dmaLen != 0)
    {
-      dma_clear_interrupt_flags(DMA2, DMA_CHANNEL5, DMA_TCIF);
-      tail = (uint16_t)((tail + dmaLen) % LOG_RING);
+      if (dmaMemoryAddress() == (uint32_t)(uintptr_t)&ring[tail])
+         tail = (uint16_t)((tail + dmaLen) % LOG_RING); /* the ring's transfer is complete */
+      /* else Terminal's send aborted the ring's transfer: that piece goes again */
       dmaLen = 0;
-      startDma();
+   }
+   startDma();
+   if (dmaLen == 0)
+   {
+      /* Nothing of the ring's is under way: stop interrupting, and leave TCIF set for Terminal's next send. */
+      dma_disable_transfer_complete_interrupt(DMA2, DMA_CHANNEL5);
    }
 }
 
@@ -141,23 +199,37 @@ static void countDrop(void)
       droppedPending++;
 }
 
-/* Puts one piece of a line (all of it, unless the line is longer than LINE_LEN) into the ring. A line that doesn't
-   fit is dropped whole. Only an interrupt's line longer than LINE_LEN, whose first piece has already gone, can be
-   cut: a further piece may go a line length beyond the limit, and if even that doesn't fit, the line is ended with
-   "\r\n" at once (always room for that), so the next line still starts clean. */
-static void commitLine(LineBuf* lb)
+/* A piece of a main-loop line: waits for room, so nothing is lost or changed. */
+static void commitMainLine(LineBuf* lb)
+{
+   for (;;)
+   {
+      uint32_t old = maskLog();
+      uint8_t done = ringWrite(lb->buf, lb->len, RING_LIMIT);
+      startDma();
+      unmaskLog(old);
+      if (done)
+         break;
+      if (interruptsDisabled())
+      {
+         countDrop(); /* nothing could make room: drop it rather than wait for ever */
+         break;
+      }
+#ifdef SERIALRING_HOST_TEST
+      hostWaitForRoom(); /* the DMA and the interrupts run */
+#endif
+   }
+   lb->len = 0;
+}
+
+/* A piece of an interrupt's line: never waits. A line that doesn't fit is dropped whole. Only a line longer than
+   LINE_LEN, whose first piece has already gone, can be cut: a further piece may go a line length beyond the first
+   piece's limit, and if even that doesn't fit, the line is ended with "\r\n" at once (always room for that), so the
+   next line still starts clean. */
+static void commitIsrLine(LineBuf* lb)
 {
    uint32_t old = maskLog();
    uint8_t ends = lb->len > 0 && lb->buf[lb->len - 1] == '\n';
-   /* a main-loop line longer than LINE_LEN is wrapped (see above) */
-   uint8_t wrap = !ends && lb == &mainLine;
-   /* A wrapped piece that ends with the line's own "\r" gets just "\n", and the "\n" that follows is dropped, so the
-      line doesn't end in "\r\r\n" followed by an empty "\n" line. */
-   uint8_t endsCr = wrap && lb->len > 0 && lb->buf[lb->len - 1] == '\r';
-   /* the first piece of a line leaves room for a line length more, so that an interrupt's long line can go on */
-   uint16_t firstLimit = RING_LIMIT - LINE_LEN;
-
-   lb->dropLf = endsCr;
 
    if (lb->broken)
    {
@@ -167,16 +239,15 @@ static void commitLine(LineBuf* lb)
    }
    else if (!lb->continued)
    {
-      if (ringWrite(lb->buf, lb->len, (uint16_t)(firstLimit - (wrap ? 2 : 0))))
+      /* the first piece leaves room for a line length more, so that a long line can go on */
+      if (ringWrite(lb->buf, lb->len, RING_LIMIT - LINE_LEN))
       {
-         if (wrap)
-            ringWrite(endsCr ? "\n" : "\r\n", endsCr ? 1 : 2, LOG_RING - 1); /* fits: kept free above */
-         lb->continued = !ends && !wrap;
+         lb->continued = !ends;
       }
       else
       {
          countDrop();
-         lb->broken = !ends && !wrap;
+         lb->broken = !ends;
       }
    }
    else
@@ -201,24 +272,24 @@ static void commitLine(LineBuf* lb)
 RingTerminal::RingTerminal(uint32_t usart, const TERM_CMD* commands)
 : Terminal(usart, commands)
 {
-   /* The Terminal has set up DMA2 channel 5 for UART4 TX; this takes it over, with its interrupt. */
+   /* The Terminal has set up DMA2 channel 5 for UART4 TX; the ring uses it too (see above), with its interrupt. */
    nvic_set_priority(NVIC_DMA2_CHANNEL4_5_IRQ, LOG_MASK_LEVEL);
    nvic_enable_irq(NVIC_DMA2_CHANNEL4_5_IRQ);
 }
 
 void RingTerminal::PutChar(char c)
 {
-   LineBuf* lb = currentIpsr() == 0 ? &mainLine : &isrLine;
+   uint8_t inMain = currentIpsr() == 0;
+   LineBuf* lb = inMain ? &mainLine : &isrLine;
 
-   if (lb->dropLf)
-   {
-      lb->dropLf = 0;
-      if (c == '\n')
-         return;
-   }
    lb->buf[lb->len++] = c;
    if (c == '\n' || lb->len == LINE_LEN)
-      commitLine(lb);
+   {
+      if (inMain)
+         commitMainLine(lb);
+      else
+         commitIsrLine(lb);
+   }
 }
 
 /* Appends text and returns the new end. */
@@ -247,12 +318,11 @@ static char* putUnsigned(char* p, uint32_t v)
 
 /* Once a second, if anything was dropped: "[<ms>] Serial output: <n> lines dropped (ring full)". Formatted here rather
    than by printf, to keep printf off the scheduler's deepest call chain. If it doesn't fit either, it waits for the
-   next second. */
+   next second. Called masked. */
 static void reportDrops(void)
 {
    char line[64]; /* "[4294967295] Serial output: 65535 lines dropped (ring full)\r\n" is 61 */
    char* p = line;
-   uint32_t old;
 
    if (droppedPending == 0)
       return;
@@ -261,22 +331,20 @@ static void reportDrops(void)
    p = putText(p, "] Serial output: ");
    p = putUnsigned(p, droppedPending);
    p = putText(p, " lines dropped (ring full)\r\n");
-   old = maskLog();
    if (ringWrite(line, (uint16_t)(p - line), RING_LIMIT))
-   {
       droppedPending = 0;
-      startDma();
-   }
-   unmaskLog(old);
 }
 
 void serialRing_cyclic100ms(void)
 {
+   uint32_t old = maskLog();
    if (++dropReportCount >= 10)
    {
       dropReportCount = 0;
       reportDrops();
    }
+   startDma(); /* also starts the ring if a write found the channel busy with Terminal's send */
+   unmaskLog(old);
 }
 
 uint32_t serialRing_droppedLines(void)

@@ -19,6 +19,11 @@ void dma_set_number_of_data(uint32_t dma, uint8_t channel, uint16_t number);
 void dma_clear_interrupt_flags(uint32_t dma, uint8_t channel, uint32_t interrupts);
 void dma_enable_transfer_complete_interrupt(uint32_t dma, uint8_t channel);
 bool dma_get_interrupt_flag(uint32_t dma, uint8_t channel, uint32_t flags);
+void dma_disable_transfer_complete_interrupt(uint32_t dma, uint8_t channel);
+/* the channel's registers: CCR EN, CNDTR, CMAR */
+uint8_t dmaEnabled(void);
+uint16_t dmaRemaining(void);
+uint32_t dmaMemoryAddress(void);
 
 #define NVIC_DMA2_CHANNEL4_5_IRQ 59
 void nvic_set_priority(uint8_t irqn, uint8_t priority);
@@ -28,9 +33,12 @@ void nvic_enable_irq(uint8_t irqn);
 uint32_t maskLog(void);
 void unmaskLog(uint32_t old);
 uint32_t currentIpsr(void);
+uint32_t interruptsDisabled(void);
 
 /* Called before every byte is put into the ring: the test lets the UART run, and runs the DMA interrupt or the
    scheduler's interrupt if the masking at that moment allows it. */
 void hostPreemptionPoint(void);
+/* The main loop waits for room in the ring: time passes, the UART runs, and interrupts may run. */
+void hostWaitForRoom(void);
 
 #endif

@@ -1,20 +1,29 @@
 /* Host test of the non-blocking serial output (ccs/serialRing.cpp). Runs on a PC: make -C test/serialRing run
 
    ccs/serialRing.cpp is compiled as it is, with the hardware simulated (serialRing_hosttest.h):
-   - DMA2 channel 5 takes bytes from the ring at a random pace (0 to a few bytes per step), as the UART does, from the
-     address and count the code last programmed. Writing the address or count while the channel is enabled fails the
-     test (the STM32 ignores it). The transfer-complete flag is set when the count reaches 0.
-   - Its interrupt runs whenever the flag and the interrupt enable are set and BASEPRI doesn't hold it off: between
-     any two steps of the code outside a masked section, and at once when a masked section ends.
-   - The main loop prints lines one character at a time; the scheduler's interrupt (which the main loop can't
-     interrupt) prints whole lines and runs the 100 ms task between any two of those characters.
+   - DMA2 channel 5 (EN, CNDTR, CMAR, TCIF, TCIE) takes bytes at a random pace, as the UART does, from the ring or
+     from libopeninv Terminal's own output buffers, whichever was programmed. Like the STM32, it ignores CNDTR and CMAR
+     writes while enabled, and restarts from CMAR when enabled. The ring's code writing them while enabled fails the
+     test. TCIF is set when the count reaches 0.
+   - Its interrupt runs whenever TCIF and TCIE are set and BASEPRI doesn't hold it off; one that keeps firing without
+     end fails the test.
+   - The main loop prints lines one character at a time: short lines, json-sized replies (10 kB on one line), and now
+     and then one of Terminal's own sends (its reply to an unknown command, "fastuart", "echo"), done the way
+     libopeninv's Terminal::SendCurrentBuffer does it: wait for TCIF (unless it is the first send), disable the
+     channel, program it, clear TCIF, enable it. A wait that never ends fails the test.
+   - The scheduler's interrupt (which the main loop can't interrupt) prints whole lines, marked so the test can tell
+     them apart, and runs the 100 ms task: between any two of the main loop's characters, while the main loop waits
+     for room, and between the steps of Terminal's send after its wait.
 
-   Checks, over millions of writes and thousands of trips round the ring:
-   - Byte for byte: what reached the UART is exactly what was put into the ring, in the same order, each byte once.
-     (What was put in is read from the ring right after each write, before anything else can touch it.)
-   - No interrupt's output lands inside the main loop's line while it is being put into the ring.
-   - The drop count: every line printed either reached the UART whole or was counted as dropped, and the "lines
-     dropped" lines add up to the count.
+   Checks, over millions of steps and thousands of trips round the ring:
+   - What the DMA read from the ring is exactly what was put into the ring, in order, each byte once.
+   - With the interrupts' lines and the drop reports taken out, the output is exactly what the main loop printed and
+     Terminal sent, in order: nothing lost, nothing added (no line breaks the caller didn't write).
+   - No interrupt's output lands inside a main-loop piece while it is being put into the ring.
+   - Every interrupt line either reached the UART whole or was counted as dropped, and the drop reports add up.
+   - Neither Terminal's send nor the main loop waits for ever, and the DMA interrupt doesn't keep firing.
+   Not modelled: the scheduler's interrupt between Terminal seeing TCIF and disabling the channel (see
+   serialRing.cpp, "What remains").
 
    usage: ring_test [seed] [operations] [long] */
 
@@ -38,16 +47,24 @@ static int uartMax = 3; /* bytes the UART may take per step */
 static struct
 {
    bool en, tcie, tcif;
-   uint32_t addr;
-   uint16_t ndtr;
+   uint32_t cmar;
+   uint16_t cndtr;
+   uint32_t cur; /* the address the next byte comes from */
 } dma;
 
-static std::string wire;     /* what the UART sent */
-static std::string expected; /* what was put into the ring */
+static char termBuf[2][128]; /* libopeninv Terminal's outBuf[2][bufSize] */
+static int termCur;
+static bool termFirstSend = true;
+
+static std::string wire;         /* what the UART sent */
+static std::string ringOut;      /* ...of it, what the DMA read from the ring */
+static std::string ringExpected; /* what was put into the ring */
+static std::string mainOrder;    /* what the main loop printed and Terminal sent, in order */
 static unsigned long failures;
 
 /* coverage */
-static unsigned long isrRuns, isrHeldOff, segmentsAtWrap, writesEndingAtWrap, dmaStarts;
+static unsigned long isrRuns, isrHeldOff, writesEndingAtWrap, dmaStarts, termSends, termWaitSteps, mainWaits,
+   jsonReplies;
 
 static void fail(const char* what)
 {
@@ -62,11 +79,18 @@ static bool isrAllowed(void)
 
 static void maybeIsr(void)
 {
+   int runs = 0;
    if (dma.tcif && dma.tcie && !simInIsr && !isrAllowed())
       isrHeldOff++;
-   if (isrAllowed())
+   while (isrAllowed())
    {
       uint32_t savedIpsr = simIpsr;
+      if (++runs > 1000)
+      {
+         fail("the DMA interrupt keeps firing");
+         dma.tcie = false;
+         break;
+      }
       simInIsr = true;
       simIpsr = 16 + NVIC_DMA2_CHANNEL4_5_IRQ;
       isrRuns++;
@@ -76,33 +100,49 @@ static void maybeIsr(void)
    }
 }
 
+/* The byte at a DMA address: in the ring (fromRing) or in Terminal's buffers. */
+static char readMemory(uint32_t addr, bool* fromRing)
+{
+   uint32_t ringBase = (uint32_t)(uintptr_t)ring, termBase = (uint32_t)(uintptr_t)termBuf;
+   if (addr - ringBase < LOG_RING)
+   {
+      *fromRing = true;
+      return (char)ring[addr - ringBase];
+   }
+   if (addr - termBase < sizeof(termBuf))
+   {
+      *fromRing = false;
+      return ((char*)termBuf)[addr - termBase];
+   }
+   fail("the DMA reads outside the ring and Terminal's buffers");
+   dma.en = false;
+   *fromRing = false;
+   return 0;
+}
+
 /* The UART takes a few bytes; then the interrupt runs if it may. */
 static void hwStep(void)
 {
    int k = (int)(rng() % (unsigned)(uartMax + 1));
-   uint32_t base = (uint32_t)(uintptr_t)ring;
 
    simTicks += 1 + rng() % 40;
-   while (k-- > 0 && dma.en && dma.ndtr > 0)
+   while (k-- > 0 && dma.en && dma.cndtr > 0)
    {
-      uint32_t off = dma.addr - base;
-      if (off >= LOG_RING)
-      {
-         fail("the DMA reads outside the ring");
-         dma.en = false;
+      bool fromRing;
+      char c = readMemory(dma.cur, &fromRing);
+      if (!dma.en)
          break;
-      }
-      wire += (char)ring[off];
-      dma.addr++;
-      if (--dma.ndtr == 0)
-      {
+      wire += c;
+      if (fromRing)
+         ringOut += c;
+      dma.cur++;
+      if (--dma.cndtr == 0)
          dma.tcif = true;
-         if (off == LOG_RING - 1)
-            segmentsAtWrap++;
-      }
    }
    maybeIsr();
 }
+
+/* --- what the ring's code calls --- */
 
 void dma_disable_channel(uint32_t, uint8_t)
 {
@@ -113,6 +153,7 @@ void dma_disable_channel(uint32_t, uint8_t)
 void dma_enable_channel(uint32_t, uint8_t)
 {
    dma.en = true;
+   dma.cur = dma.cmar;
    dmaStarts++;
    hwStep();
 }
@@ -120,17 +161,19 @@ void dma_enable_channel(uint32_t, uint8_t)
 void dma_set_memory_address(uint32_t, uint8_t, uint32_t address)
 {
    if (dma.en)
-      fail("DMA address written while the channel is enabled");
-   dma.addr = address;
+      fail("the ring writes the DMA address while the channel is enabled");
+   else
+      dma.cmar = address;
 }
 
 void dma_set_number_of_data(uint32_t, uint8_t, uint16_t number)
 {
    if (dma.en)
-      fail("DMA count written while the channel is enabled");
+      fail("the ring writes the DMA count while the channel is enabled");
    if (number == 0)
       fail("DMA started with a count of 0");
-   dma.ndtr = number;
+   if (!dma.en)
+      dma.cndtr = number;
 }
 
 void dma_clear_interrupt_flags(uint32_t, uint8_t, uint32_t interrupts)
@@ -144,9 +187,29 @@ void dma_enable_transfer_complete_interrupt(uint32_t, uint8_t)
    dma.tcie = true;
 }
 
+void dma_disable_transfer_complete_interrupt(uint32_t, uint8_t)
+{
+   dma.tcie = false;
+}
+
 bool dma_get_interrupt_flag(uint32_t, uint8_t, uint32_t flags)
 {
    return (flags & DMA_TCIF) && dma.tcif;
+}
+
+uint8_t dmaEnabled(void)
+{
+   return dma.en;
+}
+
+uint16_t dmaRemaining(void)
+{
+   return dma.cndtr;
+}
+
+uint32_t dmaMemoryAddress(void)
+{
+   return dma.cmar;
 }
 
 void nvic_set_priority(uint8_t, uint8_t) {}
@@ -178,6 +241,11 @@ uint32_t currentIpsr(void)
    return simIpsr;
 }
 
+uint32_t interruptsDisabled(void)
+{
+   return 0;
+}
+
 /* --- writing, and recording what was put into the ring --- */
 
 static int captureDepth; /* an interrupt's write inside another write is read with the outer one */
@@ -195,7 +263,7 @@ template <class F> static void committed(F f)
    captureDepth--;
    uint16_t h1 = head;
    for (uint16_t i = h0; i != h1; i = (uint16_t)((i + 1) % LOG_RING))
-      expected += (char)ring[i];
+      ringExpected += (char)ring[i];
    if (h1 == 0 && h0 != 0)
       writesEndingAtWrap++;
 }
@@ -203,44 +271,49 @@ template <class F> static void committed(F f)
 static RingTerminal* term;
 static bool allowLongLines;
 static unsigned long preemptions;
-static unsigned long linesTried;
+static unsigned long isrLinesTried;
+static unsigned long waitSteps; /* steps the main loop has waited for its current piece */
 
-static std::string randomText(int n)
+static std::string randomText(int n, const char* chars)
 {
-   static const char chars[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 =.,:-_/[]()";
+   size_t k = strlen(chars);
    std::string s;
    for (int i = 0; i < n; i++)
-      s += chars[rng() % (sizeof(chars) - 1)];
+      s += chars[rng() % k];
    return s;
 }
 
-/* A line; long lines (sent in pieces) only when allowed. */
-static std::string randomLine(bool allowLong)
+static const char* const textChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 =.,:-_/()";
+static const char* const jsonChars = "abcdefghijklmnopqrstuvwxyz0123456789 \"{}[],:.-";
+
+/* An interrupt's line, marked with \x01 so that the check can take it out; long lines only when allowed. */
+static std::string isrLineText(bool allowLong)
 {
-   int maxLen = allowLong && rng() % 20 == 0 ? 400 : LINE_LEN - 10;
-   return "[" + std::to_string(rng() % 100000) + "] " + randomText(rng() % (maxLen - 12)) + "\r\n";
+   int maxLen = allowLong && rng() % 20 == 0 ? 400 : LINE_LEN - 12;
+   return "\x01[" + std::to_string(rng() % 100000) + "] " + randomText(rng() % (maxLen - 12), textChars) + "\r\n";
 }
 
-static void putLine(const std::string& s)
+static void isrAction(void)
 {
-   for (char c : s)
-      committed([&] { term->PutChar(c); });
-}
-
-static void isrAction(bool allowLong)
-{
-   uint32_t saved = simIpsr;
-   simIpsr = 16 + 30; /* TIM4 */
    if (rng() % 100 < 80)
    {
-      std::string s = randomLine(allowLong);
-      linesTried++;
-      putLine(s);
+      std::string s = isrLineText(allowLongLines);
+      isrLinesTried++;
+      for (char c : s)
+         committed([&] { term->PutChar(c); });
    }
    else
    {
       committed([&] { serialRing_cyclic100ms(); });
    }
+}
+
+/* The scheduler's interrupt, now (the caller has checked that the masking allows it). */
+static void runSchedulerIsr(void)
+{
+   uint32_t saved = simIpsr;
+   simIpsr = 16 + 30; /* TIM4 */
+   isrAction();
    simIpsr = saved;
 }
 
@@ -253,13 +326,119 @@ void hostPreemptionPoint(void)
    if (simIpsr == 0 && (simBasepri == 0 || simBasepri > 0xE0) && rng() % 32 == 0)
    {
       preemptions++;
-      isrAction(allowLongLines);
+      runSchedulerIsr();
    }
+}
+
+/* The main loop waits for room: the UART runs, and the scheduler's interrupt may come. */
+void hostWaitForRoom(void)
+{
+   mainWaits++;
+   if (++waitSteps > 2000000)
+   {
+      fail("the main loop waits for room for ever");
+      head = tail; /* give up on this run's ring, to end the test */
+      return;
+   }
+   hwStep();
+   if (rng() % 64 == 0)
+      runSchedulerIsr();
+}
+
+static void mainPutChar(char c)
+{
+   waitSteps = 0;
+   committed([&] { term->PutChar(c); });
+}
+
+/* libopeninv's Terminal::SendBinary / Send, as SendCurrentBuffer does it, from the main loop. */
+static void terminalSend(const std::string& s)
+{
+   unsigned long spins = 0;
+   size_t n = s.size() < sizeof(termBuf[0]) ? s.size() : sizeof(termBuf[0]);
+
+   memcpy(termBuf[termCur], s.data(), n);
+   termSends++;
+   while (!dma.tcif && !termFirstSend)
+   {
+      termWaitSteps++;
+      if (++spins > 2000000)
+      {
+         fail("Terminal's own send waits for TCIF for ever");
+         return;
+      }
+      hwStep();
+      if (rng() % 64 == 0)
+         runSchedulerIsr();
+   }
+   /* disable, program, clear TCIF, enable; the scheduler's interrupt may come between the steps */
+   dma.en = false;
+   if (rng() % 3 == 0)
+      runSchedulerIsr();
+   if (!dma.en)
+      dma.cndtr = (uint16_t)n;
+   if (rng() % 3 == 0)
+      runSchedulerIsr();
+   if (!dma.en)
+      dma.cmar = (uint32_t)(uintptr_t)termBuf[termCur];
+   if (rng() % 3 == 0)
+      runSchedulerIsr();
+   dma.tcif = false;
+   if (rng() % 3 == 0)
+      runSchedulerIsr();
+   dma.en = true;
+   dma.cur = dma.cmar;
+   termCur = !termCur;
+   termFirstSend = false;
+   mainOrder += s.substr(0, n);
+   hwStep();
 }
 
 /* --- the run --- */
 
-static int run(unsigned seed, unsigned long ops, bool allowLong)
+/* The output with the interrupts' lines (\x01 ... \r\n) and the drop reports taken out; reports' counts in reported. */
+static std::string mainOnly(const std::string& w, unsigned long* isrLinesGot, unsigned long* reported)
+{
+   std::string out;
+   size_t pos = 0;
+   *isrLinesGot = 0;
+   *reported = 0;
+   while (pos < w.size())
+   {
+      if (w[pos] == '\x01')
+      {
+         size_t e = w.find("\r\n", pos);
+         if (e == std::string::npos)
+         {
+            fail("an interrupt's line doesn't end");
+            break;
+         }
+         (*isrLinesGot)++;
+         pos = e + 2;
+         continue;
+      }
+      if (w[pos] == '[')
+      {
+         size_t e = w.find("\r\n", pos);
+         if (e != std::string::npos)
+         {
+            std::string line = w.substr(pos, e - pos);
+            const char* p = strstr(line.c_str(), "] Serial output: ");
+            unsigned n;
+            if (p && sscanf(p, "] Serial output: %u lines dropped", &n) == 1)
+            {
+               *reported += n;
+               pos = e + 2;
+               continue;
+            }
+         }
+      }
+      out += w[pos++];
+   }
+   return out;
+}
+
+static int run(unsigned seed, unsigned long ops)
 {
    int isrShare = 40; /* percent of steps the scheduler's interrupt writes something; the rest the UART runs */
    rng.seed(seed);
@@ -278,20 +457,42 @@ static int run(unsigned seed, unsigned long ops, bool allowLong)
       int r = rng() % 100;
       if (r < 45)
       {
-         /* the main loop prints its next character */
+         /* the main loop prints its next character, or between lines one of Terminal's own sends */
          if (pendingPos >= pending.size())
          {
-            pending = randomLine(allowLong);
+            int what = rng() % 400;
+            if (what < 8)
+            {
+               static const char* const replies[] = { "Unknown command sequence\r\n", "\nOK\r\n",
+                                                      "Baud rate now 921600\r\n", "Echo on\r\n" };
+               if (uartMax == 0)
+                  uartMax = 1; /* Terminal's wait needs the UART to run */
+               terminalSend(replies[rng() % 4]);
+               continue;
+            }
+            if (what == 8)
+            {
+               pending = "{" + randomText(10000, jsonChars) + "}\r\n"; /* a "json" reply: 10 kB on one line */
+               jsonReplies++;
+               if (uartMax == 0)
+                  uartMax = 1; /* the main loop waits for room: the UART must run */
+            }
+            else
+            {
+               pending = randomText(rng() % (LINE_LEN - 2), textChars) + "\r\n";
+            }
             pendingPos = 0;
-            linesTried++;
+            mainOrder += pending;
          }
          char c = pending[pendingPos++];
          simIpsr = 0;
-         committed([&] { term->PutChar(c); });
+         if (uartMax == 0)
+            uartMax = 1; /* the main loop may have to wait for room */
+         mainPutChar(c);
       }
       else if (r < 45 + isrShare)
       {
-         isrAction(allowLong);
+         runSchedulerIsr();
       }
       else
       {
@@ -300,56 +501,43 @@ static int run(unsigned seed, unsigned long ops, bool allowLong)
    }
    /* finish the main loop's line, then let the UART send everything */
    simIpsr = 0;
-   while (pendingPos < pending.size())
-   {
-      char c = pending[pendingPos++];
-      committed([&] { term->PutChar(c); });
-   }
    uartMax = 8;
-   for (int i = 0; i < 10000000 && (head != tail || dma.ndtr != 0 || dma.tcif); i++)
-      hwStep();
-   simIpsr = 16 + 30;
-   for (int i = 0; i < 10; i++)
-      committed([&] { serialRing_cyclic100ms(); }); /* the last drop report */
-   simIpsr = 0;
-   for (int i = 0; i < 10000000 && (head != tail || dma.ndtr != 0 || dma.tcif); i++)
+   while (pendingPos < pending.size())
+      mainPutChar(pending[pendingPos++]);
+   for (int round = 0; round < 3; round++)
+   {
+      for (int i = 0; i < 10000000 && (head != tail || dma.cndtr != 0); i++)
+         hwStep();
+      simIpsr = 16 + 30;
+      for (int i = 0; i < 10; i++)
+         committed([&] { serialRing_cyclic100ms(); }); /* the last drop report, and a kick */
+      simIpsr = 0;
+   }
+   for (int i = 0; i < 10000000 && (head != tail || dma.cndtr != 0); i++)
       hwStep();
 
-   /* byte for byte */
-   if (wire != expected)
+   if (ringOut != ringExpected)
    {
       size_t k = 0;
-      while (k < wire.size() && k < expected.size() && wire[k] == expected[k])
+      while (k < ringOut.size() && k < ringExpected.size() && ringOut[k] == ringExpected[k])
          k++;
-      printf("wire %zu bytes, ring %zu bytes, first difference at byte %zu\n", wire.size(), expected.size(), k);
-      fail("what reached the UART differs from what was put into the ring");
+      printf("from the ring %zu bytes, into it %zu bytes, first difference at byte %zu\n", ringOut.size(),
+             ringExpected.size(), k);
+      fail("what the DMA read from the ring differs from what was put into it");
    }
-
-   /* the lines that reached the UART */
-   unsigned long got = 0, reported = 0;
-   size_t pos = 0;
-   while (pos < wire.size())
+   unsigned long isrLinesGot, reported;
+   std::string mainGot = mainOnly(wire, &isrLinesGot, &reported);
+   if (mainGot != mainOrder)
    {
-      size_t e = wire.find("\r\n", pos);
-      if (e == std::string::npos)
-      {
-         fail("the output ends in the middle of a line");
-         break;
-      }
-      std::string line = wire.substr(pos, e - pos);
-      pos = e + 2;
-      unsigned n;
-      const char* p = strstr(line.c_str(), "] Serial output: ");
-      if (p && sscanf(p, "] Serial output: %u lines dropped", &n) == 1)
-      {
-         reported += n;
-         continue;
-      }
-      got++;
+      size_t k = 0;
+      while (k < mainGot.size() && k < mainOrder.size() && mainGot[k] == mainOrder[k])
+         k++;
+      printf("main-loop output %zu bytes, printed %zu bytes, first difference at byte %zu\n", mainGot.size(),
+             mainOrder.size(), k);
+      fail("the main loop's output and Terminal's sends didn't arrive exactly as printed");
    }
-
-   if (!allowLong && linesTried - got != droppedTotal)
-      fail("lines lost differ from the count");
+   if (!allowLongLines && isrLinesTried - isrLinesGot != droppedTotal)
+      fail("interrupt lines lost differ from the count");
    if (reported + droppedPending != droppedTotal)
       fail("the \"lines dropped\" lines don't add up to the count");
    if (serialRing_droppedLines() != droppedTotal)
@@ -357,11 +545,13 @@ static int run(unsigned seed, unsigned long ops, bool allowLong)
    if (preemptions != 0)
       fail("the scheduler's interrupt could write while the main loop was putting bytes into the ring");
 
-   printf("seed %u, %lu steps%s: %zu bytes out (%zu trips round the ring), lines %lu/%lu, %u dropped\n", seed, ops,
-          allowLong ? " with long lines" : "", wire.size(), wire.size() / LOG_RING, got, linesTried,
-          (unsigned)droppedTotal);
-   printf("  coverage: %lu DMA starts, %lu interrupts, %lu held off while masked, %lu transfers ending at the "
-          "ring's end, %lu writes ending at it\n", dmaStarts, isrRuns, isrHeldOff, segmentsAtWrap, writesEndingAtWrap);
+   printf("seed %u, %lu steps%s: %zu bytes out (%zu trips round the ring); main loop %zu bytes intact, with %lu json "
+          "replies and %lu Terminal sends; interrupt lines %lu/%lu, %u dropped\n", seed, ops,
+          allowLongLines ? " with long lines" : "", wire.size(), ringOut.size() / LOG_RING, mainOrder.size(),
+          jsonReplies, termSends, isrLinesGot, isrLinesTried, (unsigned)droppedTotal);
+   printf("  coverage: %lu DMA starts, %lu interrupts, %lu held off while masked, %lu writes ending at the ring's "
+          "end, %lu steps Terminal waited, %lu steps the main loop waited for room\n", dmaStarts, isrRuns, isrHeldOff,
+          writesEndingAtWrap, termWaitSteps, mainWaits);
    return failures == 0 ? 0 : 1;
 }
 
@@ -369,11 +559,10 @@ int main(int argc, char** argv)
 {
    unsigned seed = argc > 1 ? (unsigned)strtoul(argv[1], 0, 10) : 1;
    unsigned long ops = argc > 2 ? strtoul(argv[2], 0, 10) : 3000000;
-   bool allowLong = argc > 3 && argv[3][0] == 'l';
+   allowLongLines = argc > 3 && argv[3][0] == 'l';
    RingTerminal t(0, 0);
    term = &t;
-   allowLongLines = allowLong;
-   int rc = run(seed, ops, allowLong);
+   int rc = run(seed, ops);
    if (rc == 0)
       printf("OK\n");
    else
