@@ -306,10 +306,11 @@ RingTerminal::RingTerminal(uint32_t usart, const TERM_CMD* commands)
 
 /* Terminal sends itself only from Terminal::Run (its replies, and the commands it calls). While it runs, only the main
    loop, which is where Terminal runs, starts the ring: interrupt context neither starts a transfer nor chains the next
-   one (but for the rest of a line split at the ring's end, see the DMA interrupt). So Terminal and the ring never program the channel over each other, and when Terminal waits for TCIF the ring
-   lets it go after its current transfer, however much the interrupts print meanwhile (they fill the ring, and drop as
-   usual when it is full). Afterwards the main loop starts the ring again. Terminal::Run returns at once when nothing
-   was typed, so outside a command the ring is held back for microseconds. */
+   one (but for the rest of a line split at the ring's end, see the DMA interrupt). So Terminal and the ring never
+   program the channel over each other, and when Terminal waits for TCIF the ring lets it go after its current transfer,
+   however much the interrupts print meanwhile (they fill the ring, and drop as usual when it is full). Afterwards the
+   main loop starts the ring again. Terminal::Run returns at once when nothing was typed, so outside a command the ring
+   is held back for microseconds. */
 void RingTerminal::Run()
 {
    uint32_t old;
