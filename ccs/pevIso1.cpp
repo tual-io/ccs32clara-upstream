@@ -31,6 +31,14 @@ static void setEvStatus(struct iso1DC_EVStatusType* st, int ready)
    st->EVRESSSOC = hardwareInterface_getSoc();
 }
 
+/* OK, OK_NewSessionEstablished, OK_OldSessionJoined and OK_CertificateExpiresSoon go on; FAILED... stop */
+static void readResponseCode(struct pevResponse* r, iso1responseCodeType code)
+{
+   r->responseCode = (uint8_t)code;
+   r->isResponseCodeOk = code < iso1responseCodeType_FAILED;
+   r->isResponseFailed = !r->isResponseCodeOk;
+}
+
 static void readEvseStatus(struct pevResponse* r, const struct iso1DC_EVSEStatusType* st)
 {
    r->evseStatusCode = (uint8_t)st->EVSEStatusCode;
@@ -44,7 +52,7 @@ void pevIso1_readResponse(struct pevResponse* r)
    if (res.SessionSetupRes_isUsed)
    {
       r->type = PEV_RES_SESSIONSETUP;
-      r->isResponseCodeOk = res.SessionSetupRes.ResponseCode <= iso1responseCodeType_OK_OldSessionJoined;
+      readResponseCode(r, res.SessionSetupRes.ResponseCode);
       r->sessionIdLen = (uint8_t)ExiDocDec.iso1D.V2G_Message.Header.SessionID.bytesLen;
       if (r->sessionIdLen > sizeof(r->sessionId))
          r->sessionIdLen = sizeof(r->sessionId);
@@ -54,7 +62,7 @@ void pevIso1_readResponse(struct pevResponse* r)
    {
       const struct iso1ServiceDiscoveryResType* sd = &res.ServiceDiscoveryRes;
       r->type = PEV_RES_SERVICEDISCOVERY;
-      r->isResponseCodeOk = sd->ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, sd->ResponseCode);
       for (uint16_t i = 0; i < sd->PaymentOptionList.PaymentOption.arrayLen; i++)
       {
          if (sd->PaymentOptionList.PaymentOption.array[i] == iso1paymentOptionType_ExternalPayment)
@@ -70,19 +78,19 @@ void pevIso1_readResponse(struct pevResponse* r)
    else if (res.PaymentServiceSelectionRes_isUsed)
    {
       r->type = PEV_RES_PAYMENTSELECTION;
-      r->isResponseCodeOk = res.PaymentServiceSelectionRes.ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, res.PaymentServiceSelectionRes.ResponseCode);
    }
    else if (res.AuthorizationRes_isUsed)
    {
       r->type = PEV_RES_AUTHORIZATION;
-      r->isResponseCodeOk = res.AuthorizationRes.ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, res.AuthorizationRes.ResponseCode);
       r->isProcessingFinished = res.AuthorizationRes.EVSEProcessing == iso1EVSEProcessingType_Finished;
    }
    else if (res.ChargeParameterDiscoveryRes_isUsed)
    {
       const struct iso1ChargeParameterDiscoveryResType* cpd = &res.ChargeParameterDiscoveryRes;
       r->type = PEV_RES_CHARGEPARAMETERDISCOVERY;
-      r->isResponseCodeOk = cpd->ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, cpd->ResponseCode);
       r->isProcessingFinished = cpd->EVSEProcessing == iso1EVSEProcessingType_Finished;
       r->maxVoltage = scaled(cpd->DC_EVSEChargeParameter.EVSEMaximumVoltageLimit);
       r->maxCurrent = scaled(cpd->DC_EVSEChargeParameter.EVSEMaximumCurrentLimit);
@@ -98,28 +106,28 @@ void pevIso1_readResponse(struct pevResponse* r)
    else if (res.CableCheckRes_isUsed)
    {
       r->type = PEV_RES_CABLECHECK;
-      r->isResponseCodeOk = res.CableCheckRes.ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, res.CableCheckRes.ResponseCode);
       r->isProcessingFinished = res.CableCheckRes.EVSEProcessing == iso1EVSEProcessingType_Finished;
       readEvseStatus(r, &res.CableCheckRes.DC_EVSEStatus);
    }
    else if (res.PreChargeRes_isUsed)
    {
       r->type = PEV_RES_PRECHARGE;
-      r->isResponseCodeOk = res.PreChargeRes.ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, res.PreChargeRes.ResponseCode);
       r->presentVoltage = scaled(res.PreChargeRes.EVSEPresentVoltage);
       readEvseStatus(r, &res.PreChargeRes.DC_EVSEStatus);
    }
    else if (res.PowerDeliveryRes_isUsed)
    {
       r->type = PEV_RES_POWERDELIVERY;
-      r->isResponseCodeOk = res.PowerDeliveryRes.ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, res.PowerDeliveryRes.ResponseCode);
       if (res.PowerDeliveryRes.DC_EVSEStatus_isUsed)
          readEvseStatus(r, &res.PowerDeliveryRes.DC_EVSEStatus);
    }
    else if (res.CurrentDemandRes_isUsed)
    {
       r->type = PEV_RES_CURRENTDEMAND;
-      r->isResponseCodeOk = res.CurrentDemandRes.ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, res.CurrentDemandRes.ResponseCode);
       r->presentVoltage = scaled(res.CurrentDemandRes.EVSEPresentVoltage);
       r->presentCurrent = scaled(res.CurrentDemandRes.EVSEPresentCurrent);
       readEvseStatus(r, &res.CurrentDemandRes.DC_EVSEStatus);
@@ -128,14 +136,14 @@ void pevIso1_readResponse(struct pevResponse* r)
    else if (res.WeldingDetectionRes_isUsed)
    {
       r->type = PEV_RES_WELDINGDETECTION;
-      r->isResponseCodeOk = res.WeldingDetectionRes.ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, res.WeldingDetectionRes.ResponseCode);
       r->presentVoltage = scaled(res.WeldingDetectionRes.EVSEPresentVoltage);
       readEvseStatus(r, &res.WeldingDetectionRes.DC_EVSEStatus);
    }
    else if (res.SessionStopRes_isUsed)
    {
       r->type = PEV_RES_SESSIONSTOP;
-      r->isResponseCodeOk = res.SessionStopRes.ResponseCode == iso1responseCodeType_OK;
+      readResponseCode(r, res.SessionStopRes.ResponseCode);
    }
 }
 

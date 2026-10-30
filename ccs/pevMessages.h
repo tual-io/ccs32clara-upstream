@@ -36,7 +36,9 @@ enum pevResponseType
 struct pevResponse
 {
    uint8_t type;                 /* enum pevResponseType */
-   uint8_t isResponseCodeOk;     /* ResponseCode is OK */
+   uint8_t isResponseCodeOk;     /* ResponseCode is OK (DIN: CableCheckRes only; ISO: OK or OK_...) */
+   uint8_t isResponseFailed;     /* ISO only: ResponseCode is FAILED or FAILED_...; DIN response codes aren't read */
+   uint8_t responseCode;         /* ISO only: the ResponseCode */
    uint8_t isProcessingFinished; /* EVSEProcessing is Finished */
    uint8_t evseStatusCode;       /* PEV_EVSESTATUS_... */
    uint8_t isChargerStopRequested; /* the charger asks to stop (EVSE_Shutdown; with ISO also EVSENotification StopCharging) */

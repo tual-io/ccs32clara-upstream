@@ -146,12 +146,25 @@ static uint8_t pev_getOffer(void)
    return V2G_OFFER_DIN_ONLY;
 }
 
+uint8_t pevStateMachine_isDinOffered(void)
+{
+   return pev_getOffer() != V2G_OFFER_ISO_ONLY;
+}
+
 /* A message we can't go on with. The state machine then runs the safe shutdown (pev_runFsm). */
 static void pev_stopOnMessageError(const char* text)
 {
    addToTrace(MOD_PEV, text);
    Param::SetInt(Param::StopReason, STOP_REASON_V2G_MESSAGE_ERROR);
    pev_isMessageError = 1;
+}
+
+/* ISO 15118-2: the charger answered with ResponseCode FAILED or FAILED_... The state machine then runs the safe
+   shutdown (pev_runFsm). In CurrentDemand, the state itself stops with PowerDeliveryReq(0) instead. */
+static void pev_stopOnFailedResponse(void)
+{
+   addToTrace(MOD_PEV, "The charger answered with ResponseCode FAILED. Stopping. ResponseCode", (int16_t)rsp.responseCode);
+   Param::SetInt(Param::StopReason, STOP_REASON_CHARGER_RESPONSE_FAILED);
 }
 
 static void addV2GTPHeaderAndTransmit(const uint8_t *exiBuffer, uint8_t exiBufferLen)
@@ -302,6 +315,14 @@ static void pev_receive(void)
       else
       {
          pevIso1_readResponse(&rsp);
+         if (rsp.isResponseFailed && rsp.type != PEV_RES_CURRENTDEMAND)
+         {
+            /* Before CurrentDemand the contactors are open or the charger delivers no power yet; after it, the
+               session is ending anyway: the safe shutdown (state B, contactors open, unlock) is the way out. */
+            pev_stopOnFailedResponse();
+            pev_isMessageError = 1;
+            rsp.type = PEV_RES_NONE; /* the state doesn't act on it */
+         }
       }
    }
    else
@@ -1146,7 +1167,18 @@ static void stateFunctionWaitForCurrentDemandResponse(void)
             pev_isUserStopRequestOnChargerSide = 1;
             Param::SetInt(Param::StopReason, STOP_REASON_CHARGER_SHUTDOWN);
          }
-         if (rsp.evseStatusCode == PEV_EVSESTATUS_MALFUNCTION)
+         if (rsp.isResponseFailed)
+         {
+            /* ISO 15118-2 only: the charger answered with ResponseCode FAILED... Stop the way we stop on a
+               malfunction: PowerDeliveryReq(0), then the normal end with welding detection. */
+            pev_stopOnFailedResponse();
+            pev_wasPowerDeliveryRequestedOn=0;
+            setCheckpoint(800);
+            pev_sendPowerDeliveryReq(0);
+            pev_enterState(PEV_STATE_WaitForPowerDeliveryResponse);
+            isPowerDeliveryOffSent = 1;
+         }
+         else if (rsp.evseStatusCode == PEV_EVSESTATUS_MALFUNCTION)
          {
             /* If the charger reports a malfunction, we stop the charging. */
             /* Issue reference: https://github.com/uhi22/ccs32clara/issues/29 */
@@ -1439,6 +1471,13 @@ static void pev_runFsm(void)
    }
 
    stateFunctions[pev_state](); //call state function
+
+   if (tcp_takeReceiveError() && pev_state >= PEV_STATE_WaitForSupportedApplicationProtocolResponse
+       && pev_state <= PEV_STATE_WaitForSessionStopResponse)
+   {
+      /* tcp.cpp stopped receiving: an invalid V2GTP header, or a message larger than its buffer */
+      pev_stopOnMessageError("Could not receive the V2GTP message (invalid header or too large). Stopping.");
+   }
 
    if (pev_isMessageError)
    {

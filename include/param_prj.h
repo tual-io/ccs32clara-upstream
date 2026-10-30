@@ -134,7 +134,7 @@
 #define OFFON        "0=Off, 1=On"
 #define DEMOCTRL     "0=CAN, 234=StandAlone"
 #define ACMODES      "0=CANRemoteControlled, 1=StandAlone"
-#define STOPREASONS  "0=None, 1=Button, 2=MissingEnable, 3=CANTimeout, 4=ChargerShutdown, 5=AccuFull, 6=ChargerEmergency, 7=InletOverheat, 8=EvseMalfunction,9=InletVoltageDeviation, 10=ChargerRequiresTls, 11=NoCommonProtocol, 12=V2gMessageError"
+#define STOPREASONS  "0=None, 1=Button, 2=MissingEnable, 3=CANTimeout, 4=ChargerShutdown, 5=AccuFull, 6=ChargerEmergency, 7=InletOverheat, 8=EvseMalfunction,9=InletVoltageDeviation, 10=ChargerRequiresTls, 11=NoCommonProtocol, 12=V2gMessageError, 13=ChargerResponseFailed"
 #define V2GOFFERS    "0=DinOnly, 1=IsoThenDin, 2=DinThenIso, 3=IsoOnly"
 #define V2GPROTOCOLS "0=None, 1=DIN70121, 2=ISO15118_2"
 #define WAKEUP       "0=Level, 1=Pulse, 2=LevelOnValidCp, 3=PulseOnValidCp, 4=LevelOnValidPP"
@@ -219,7 +219,8 @@ enum _stopreasons
    STOP_REASON_INLET_VOLTAGE_DEVIATION,
    STOP_REASON_CHARGER_REQUIRES_TLS,
    STOP_REASON_NO_COMMON_PROTOCOL,
-   STOP_REASON_V2G_MESSAGE_ERROR
+   STOP_REASON_V2G_MESSAGE_ERROR,
+   STOP_REASON_CHARGER_RESPONSE_FAILED
 };
 
 enum _limitationreasons
