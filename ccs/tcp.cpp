@@ -1,4 +1,5 @@
 #include "ccs32_globals.h"
+#include "v2gtp.h"
 
 /* Todo: implement a retry strategy, to cover the situation that single packets are lost on the way. */
 
@@ -9,6 +10,9 @@
 #define TCP_FLAG_PSH 0x08
 #define TCP_FLAG_ACK 0x10
 #define TCP_TRANSMIT_PACKET_LEN 200
+/* The maximum segment size we announce: what fits into the Ethernet receive buffer after the Ethernet (14), IPv6
+   (40) and TCP (20) headers, keeping 12 bytes for TCP options such as timestamps. */
+#define TCP_MSS (MY_ETH_RECEIVE_BUFFER_LEN - 14 - 40 - 20 - 12)
 
 #define TCP_ACK_TIMEOUT_MS 100 /* if for 100ms no ACK is received, we retry the transmission */
 #define TCP_MAX_NUMBER_OF_RETRANSMISSIONS 40 /* allow 40 retries with 100ms cycle, to bridge 4 seconds of broken line. */
@@ -29,8 +33,9 @@ static uint8_t* TcpTransmitPacket = &TcpIpRequest[40];
 uint8_t tcpHeaderLen;
 uint8_t tcpPayloadLen;
 uint8_t* tcpPayload = &TcpTransmitPacket[20];
-uint8_t tcp_rxdataLen=0;
+uint16_t tcp_rxdataLen=0;
 uint8_t tcp_rxdata[TCP_RX_DATA_LEN]; /* dedicated receive buffer for TCP data with correct ports */
+static struct V2gtpRx tcpRx; /* collects one V2GTP message in tcp_rxdata, possibly from several segments */
 
 static uint8_t tcpState = TCP_STATE_CLOSED;
 
@@ -56,7 +61,8 @@ void evaluateTcpPacket(void)
    uint8_t flags;
    uint32_t remoteSeqNr;
    uint32_t remoteAckNr;
-   uint16_t sourcePort, destinationPort, pLen, hdrLen, tmpPayloadLen;
+   uint16_t sourcePort, destinationPort, pLen, hdrLen, tmpPayloadLen, payloadOffset, available, completeLen;
+   uint8_t rx;
 
    /* todo: check the IP addresses, checksum etc */
    nTcpPacketsReceived++;
@@ -97,6 +103,8 @@ void evaluateTcpPacket(void)
       {
          TcpSeqNr = remoteAckNr; /* The sequence number of our next transmit packet is given by the received ACK number. */
          TcpAckNr = remoteSeqNr+1; /* The ACK number of our next transmit packet is one more than the received seq number. */
+         v2gtpRx_start(&tcpRx, tcp_rxdata, TCP_RX_DATA_LEN, TcpAckNr);
+         tcp_rxdataLen = 0;
          setCheckpoint(303);
          tcpState = TCP_STATE_ESTABLISHED;
          tcp_sendFirstAck();
@@ -115,22 +123,45 @@ void evaluateTcpPacket(void)
    /* It can be an ACK, or a data package, or a combination of both. We treat the ACK and the data independent from each other,
      to treat each combination. */
    //log_v("L=%d", tmpPayloadLen);
-   if ((tmpPayloadLen>0) && (tmpPayloadLen<TCP_RX_DATA_LEN))
+   if (tmpPayloadLen>0)
    {
-      /* This is a data transfer packet. */
-      tcp_rxdataLen = tmpPayloadLen;
-      /* myethreceivebuffer[74] is the first payload byte. */
+      /* This is a data transfer packet. The payload starts after the TCP header, whose length (with any options) is
+         in its data offset field. Take only what is really in the receive buffer: qca7000.cpp cuts a frame longer
+         than the buffer, and then only the part received is acknowledged, so the charger sends the rest again. */
+      payloadOffset = 54 + hdrLen;
+      available = (myethreceivebufferLen > payloadOffset) ? (myethreceivebufferLen - payloadOffset) : 0;
+      if (tmpPayloadLen > available)
+      {
+         addToTrace(MOD_TCP, "[TCP] Segment longer than the receive buffer. Taking the part that fits.");
+         tmpPayloadLen = available;
+      }
       /* Fix for https://github.com/uhi22/ccs32clara/issues/15. We explicitely need to copy the data here,
       because the application will look asynchronously on the tcp_rxdata, and if in between some other received
       data would end up in the myethreceivebuffer (e.g. neighbour solicitation, or TCP traffic with other ports),
-      the overwritten myethreceivebuffer would lead to not seeing the tcp_rxdata anymore, if this would be just
-      a pointer to myethreceivebuffer[74]. */
-      memcpy(tcp_rxdata, &myethreceivebuffer[74], tcp_rxdataLen);  /* provide the received data to the application */
+      the overwritten myethreceivebuffer would lead to not seeing the tcp_rxdata anymore. The V2GTP message may come
+      in several segments; tcp_rxdataLen is set when it is complete. */
+      completeLen = 0;
+      rx = v2gtpRx_segment(&tcpRx, remoteSeqNr, &myethreceivebuffer[payloadOffset], tmpPayloadLen, &completeLen);
       connMgr_TcpOk();
-      TcpAckNr = remoteSeqNr+tcp_rxdataLen; /* The ACK number of our next transmit packet is tcp_rxdataLen more than the received seq number. */
+      if (rx & V2GTPRX_STARTED)
+      {
+         if (tcp_rxdataLen > 0)
+            addToTrace(MOD_TCP, "[TCP] The previous message was not processed yet. It is dropped.");
+         tcp_rxdataLen = 0;
+      }
+      if (rx & V2GTPRX_TOO_LARGE)
+         addToTrace(MOD_TCP, "[TCP] V2GTP message larger than the receive buffer. It is dropped.");
+      if (rx & V2GTPRX_GAP)
+         addToTrace(MOD_TCP, "[TCP] Segment out of order. Not taken.");
+      if (rx & V2GTPRX_EXTRA)
+         addToTrace(MOD_TCP, "[TCP] Data after the end of the V2GTP message. Dropped.");
+      if (rx & V2GTPRX_COMPLETE)
+      {
+         tcp_rxdataLen = completeLen; /* provide the received message to the application */
+         addToTrace(MOD_TCPTRAFFIC, "Data received: ", tcp_rxdata, tcp_rxdataLen);
+      }
+      TcpAckNr = tcpRx.nextSeq; /* acknowledges everything received in sequence so far */
       tcp_sendAck();
-
-      addToTrace(MOD_TCPTRAFFIC, "Data received: ", tcp_rxdata, tcp_rxdataLen);
    }
    if (flags & TCP_FLAG_ACK)
    {
@@ -145,15 +176,15 @@ void tcp_connect(void)
 {
    addToTrace(MOD_TCP, "[TCP] Checkpoint301: connecting");
    setCheckpoint(301);
-   TcpTransmitPacket[20] = 0x02; /* options: 12 bytes, just copied from the Win10 notebook trace */
-   TcpTransmitPacket[21] = 0x04;
-   TcpTransmitPacket[22] = 0x05;
-   TcpTransmitPacket[23] = 0xA0;
+   TcpTransmitPacket[20] = 0x02; /* options: 12 bytes, as in a Win10 notebook trace, with our own MSS and window scale */
+   TcpTransmitPacket[21] = 0x04; /* maximum segment size: what our receive buffer holds */
+   TcpTransmitPacket[22] = (uint8_t)(TCP_MSS >> 8);
+   TcpTransmitPacket[23] = (uint8_t)(TCP_MSS);
 
    TcpTransmitPacket[24] = 0x01;
-   TcpTransmitPacket[25] = 0x03;
+   TcpTransmitPacket[25] = 0x03; /* window scale: shift 0, so the window below means bytes */
    TcpTransmitPacket[26] = 0x03;
-   TcpTransmitPacket[27] = 0x08;
+   TcpTransmitPacket[27] = 0x00;
 
    TcpTransmitPacket[28] = 0x01;
    TcpTransmitPacket[29] = 0x01;
@@ -256,7 +287,7 @@ static void tcp_prepareTcpHeader(uint8_t tcpFlag)
    TcpTransmitPacket[12] = (tcpHeaderLen/4) << 4; /* High-nibble: DataOffset in 4-byte-steps. Low-nibble: Reserved=0. */
 
    TcpTransmitPacket[13] = tcpFlag;
-#define TCP_RECEIVE_WINDOW 1000 /* number of octetts we are able to receive */
+#define TCP_RECEIVE_WINDOW TCP_RX_DATA_LEN /* number of octets we are able to receive: one V2GTP message */
    TcpTransmitPacket[14] = (uint8_t)(TCP_RECEIVE_WINDOW>>8);
    TcpTransmitPacket[15] = (uint8_t)(TCP_RECEIVE_WINDOW);
 
