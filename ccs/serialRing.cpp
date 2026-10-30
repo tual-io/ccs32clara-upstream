@@ -60,6 +60,7 @@ static volatile uint16_t tail;   /* next byte sent */
 static volatile uint16_t dmaLen; /* bytes of the ring's transfer from tail; 0 when the ring has none under way */
 static volatile uint8_t started; /* the ring has used the channel at least once */
 static volatile uint8_t terminalBusy; /* the main loop is in Terminal::Run, where Terminal may send itself */
+static uint8_t finishLine;            /* the DMA interrupt goes on with a line the ring has started sending */
 static volatile uint32_t putCount;    /* bytes put into the ring since power-on (wraps) */
 static volatile uint32_t sentCount;   /* ...of them, sent */
 static uint32_t mainPutCount;         /* putCount after the main loop's last piece */
@@ -138,7 +139,7 @@ static void startDma(void)
 
    if (dmaLen != 0 || h == t)
       return;
-   if (terminalBusy && currentIpsr() != 0)
+   if (terminalBusy && currentIpsr() != 0 && !finishLine)
       return; /* only the main loop starts the ring while Terminal may send (see Run) */
    if (dmaEnabled() ? dmaRemaining() != 0 : started)
    {
@@ -173,7 +174,12 @@ extern "C" void dma2_channel4_5_isr(void)
       /* else Terminal's send aborted the ring's transfer: that piece goes again */
       dmaLen = 0;
    }
+   /* A transfer that ended at the ring's end can stop in the middle of a line. The rest of that line goes on at once,
+      even while Terminal::Run runs, so that Terminal's reply can't land inside it. That is safe here: this interrupt
+      runs as soon as TCIF is set, before Terminal, which waits for TCIF in the main loop, can see it. */
+   finishLine = ring[(tail + LOG_RING - 1) % LOG_RING] != '\n';
    startDma();
+   finishLine = 0;
    if (dmaLen == 0)
    {
       /* Nothing of the ring's is under way: stop interrupting, and leave TCIF set for Terminal's next send. */

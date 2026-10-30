@@ -19,6 +19,8 @@
    - What the DMA read from the ring is exactly what was put into the ring, in order, each byte once.
    - With the interrupts' lines and the drop reports taken out, the output is exactly what the main loop printed and
      Terminal sent, in order: nothing lost, nothing added (no line breaks the caller didn't write).
+   - Terminal's sends never land inside a main-loop line, nor inside an interrupt's line unless that line is longer
+     than LINE_LEN (with long lines on: its pieces go into the ring one by one, so the ring can run dry in between).
    - No interrupt's output lands inside a main-loop piece while it is being put into the ring.
    - Every interrupt line either reached the UART whole or was counted as dropped, and the drop reports add up.
    - Neither Terminal's send nor the main loop waits for ever, and the DMA interrupt doesn't keep firing.
@@ -34,6 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string>
+#include <vector>
 
 /* --- the simulation --- */
 
@@ -57,6 +60,7 @@ static int termCur;
 static bool termFirstSend = true;
 
 static std::string wire;         /* what the UART sent */
+static std::string wireFromRing; /* ...for each byte of it, 1 if it came from the ring, 0 if from Terminal's buffers */
 static std::string ringOut;      /* ...of it, what the DMA read from the ring */
 static std::string ringExpected; /* what was put into the ring */
 static std::string mainOrder;    /* what the main loop printed and Terminal sent, in order */
@@ -133,6 +137,7 @@ static void hwStep(void)
       if (!dma.en)
          break;
       wire += c;
+      wireFromRing += (char)fromRing;
       if (fromRing)
          ringOut += c;
       dma.cur++;
@@ -420,49 +425,93 @@ void Terminal::Run()
 
 /* --- the run --- */
 
-/* The output with the interrupts' lines (\x01 ... \r\n) and the drop reports taken out; reports' counts in reported. */
-static std::string mainOnly(const std::string& w, unsigned long* isrLinesGot, unsigned long* reported)
+/* What the main loop printed and Terminal sent, as it reached the UART: the ring's bytes with the interrupts' lines
+   (\x01 ... \r\n) and the drop reports taken out, and Terminal's sends where they came between the ring's bytes. The
+   reports' counts go into reported. A send of Terminal's that started inside a main-loop line is counted in
+   inMainLine, inside an interrupt's line or a report in inIsrLine. */
+static std::string mainOnly(unsigned long* isrLinesGot, unsigned long* reported, unsigned long* inMainLine,
+                            unsigned long* inIsrLine)
 {
-   std::string out;
-   size_t pos = 0;
-   *isrLinesGot = 0;
-   *reported = 0;
-   while (pos < w.size())
+   std::string r;                     /* the ring's bytes */
+   std::vector<size_t> sendAt;        /* for each run of Terminal's bytes, where in r it came */
+   std::vector<std::string> sendText; /* ...and the bytes */
+   for (size_t i = 0; i < wire.size(); i++)
    {
-      if (w[pos] == '\x01')
+      if (wireFromRing[i])
       {
-         size_t e = w.find("\r\n", pos);
+         r += wire[i];
+         continue;
+      }
+      if (i == 0 || wireFromRing[i - 1])
+      {
+         sendAt.push_back(r.size());
+         sendText.push_back("");
+      }
+      sendText.back() += wire[i];
+   }
+
+   std::string out;
+   size_t pos = 0, next = 0;
+   *isrLinesGot = *reported = *inMainLine = *inIsrLine = 0;
+   for (;;)
+   {
+      /* Terminal's sends that reached the UART before the ring's byte at pos */
+      while (next < sendAt.size() && sendAt[next] <= pos)
+      {
+         if (!out.empty() && out.back() != '\n')
+            (*inMainLine)++;
+         out += sendText[next++];
+      }
+      if (pos >= r.size())
+         break;
+      size_t skipTo = pos;
+      if (r[pos] == '\x01')
+      {
+         size_t e = r.find("\r\n", pos);
          if (e == std::string::npos)
          {
             fail("an interrupt's line doesn't end");
             break;
          }
          (*isrLinesGot)++;
-         pos = e + 2;
-         continue;
+         skipTo = e + 2;
       }
-      if (w[pos] == '[')
+      else if (r[pos] == '[')
       {
          /* exactly "[<digits>] Serial output: <digits> lines dropped (ring full)\r\n" (json text has '[' too) */
          size_t q = pos + 1;
-         while (q < w.size() && w[q] >= '0' && w[q] <= '9')
+         while (q < r.size() && r[q] >= '0' && r[q] <= '9')
             q++;
          static const char mid[] = "] Serial output: ";
          static const char end[] = " lines dropped (ring full)\r\n";
-         if (q > pos + 1 && w.compare(q, sizeof(mid) - 1, mid) == 0)
+         if (q > pos + 1 && r.compare(q, sizeof(mid) - 1, mid) == 0)
          {
             size_t d = q + sizeof(mid) - 1, e = d;
-            while (e < w.size() && w[e] >= '0' && w[e] <= '9')
+            while (e < r.size() && r[e] >= '0' && r[e] <= '9')
                e++;
-            if (e > d && w.compare(e, sizeof(end) - 1, end) == 0)
+            if (e > d && r.compare(e, sizeof(end) - 1, end) == 0)
             {
-               *reported += strtoul(w.substr(d, e - d).c_str(), 0, 10);
-               pos = e + sizeof(end) - 1;
-               continue;
+               *reported += strtoul(r.substr(d, e - d).c_str(), 0, 10);
+               skipTo = e + sizeof(end) - 1;
             }
          }
       }
-      out += w[pos++];
+      if (skipTo == pos)
+      {
+         out += r[pos++];
+         continue;
+      }
+      /* sends that came inside the interrupt's line or the report: they go out here, as nothing of the main loop's
+         is inside it */
+      while (next < sendAt.size() && sendAt[next] < skipTo)
+      {
+         if (sendAt[next] > pos)
+            (*inIsrLine)++;
+         else if (!out.empty() && out.back() != '\n')
+            (*inMainLine)++;
+         out += sendText[next++];
+      }
+      pos = skipTo;
    }
    return out;
 }
@@ -573,8 +622,8 @@ static int run(unsigned seed, unsigned long ops)
              ringExpected.size(), k);
       fail("what the DMA read from the ring differs from what was put into it");
    }
-   unsigned long isrLinesGot, reported;
-   std::string mainGot = mainOnly(wire, &isrLinesGot, &reported);
+   unsigned long isrLinesGot, reported, sendsInMainLine, sendsInIsrLine;
+   std::string mainGot = mainOnly(&isrLinesGot, &reported, &sendsInMainLine, &sendsInIsrLine);
    if (mainGot != mainOrder)
    {
       size_t k = 0;
@@ -586,6 +635,10 @@ static int run(unsigned seed, unsigned long ops)
       printf("  got:     ...%s...\n", mainGot.substr(k > 60 ? k - 60 : 0, 160).c_str());
       fail("the main loop's output and Terminal's sends didn't arrive exactly as printed");
    }
+   if (sendsInMainLine != 0)
+      fail("one of Terminal's sends landed inside a main-loop line");
+   if (sendsInIsrLine != 0 && !allowLongLines)
+      fail("one of Terminal's sends landed inside an interrupt's line");
    if (!allowLongLines && isrLinesTried - isrLinesGot != droppedTotal)
       fail("interrupt lines lost differ from the count");
    if (reported + droppedPending != droppedTotal)
@@ -600,8 +653,9 @@ static int run(unsigned seed, unsigned long ops)
           allowLongLines ? " with long lines" : "", wire.size(), ringOut.size() / LOG_RING, mainOrder.size(),
           jsonReplies, termSends, isrLinesGot, isrLinesTried, (unsigned)droppedTotal);
    printf("  coverage: %lu DMA starts, %lu interrupts, %lu held off while masked, %lu writes ending at the ring's "
-          "end, %lu steps Terminal waited, %lu steps the main loop waited for room\n", dmaStarts, isrRuns, isrHeldOff,
-          writesEndingAtWrap, termWaitSteps, mainWaits);
+          "end, %lu steps Terminal waited, %lu steps the main loop waited for room; %lu of Terminal's sends between "
+          "two pieces of a long interrupt line\n", dmaStarts, isrRuns, isrHeldOff, writesEndingAtWrap, termWaitSteps,
+          mainWaits, sendsInIsrLine);
    return failures == 0 ? 0 : 1;
 }
 
