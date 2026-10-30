@@ -60,6 +60,9 @@ static volatile uint16_t tail;   /* next byte sent */
 static volatile uint16_t dmaLen; /* bytes of the ring's transfer from tail; 0 when the ring has none under way */
 static volatile uint8_t started; /* the ring has used the channel at least once */
 static volatile uint8_t terminalBusy; /* the main loop is in Terminal::Run, where Terminal may send itself */
+static volatile uint32_t putCount;    /* bytes put into the ring since power-on (wraps) */
+static volatile uint32_t sentCount;   /* ...of them, sent */
+static uint32_t mainPutCount;         /* putCount after the main loop's last piece */
 
 struct LineBuf
 {
@@ -163,7 +166,10 @@ extern "C" void dma2_channel4_5_isr(void)
    if (dmaLen != 0)
    {
       if (dmaMemoryAddress() == (uint32_t)(uintptr_t)&ring[tail])
+      {
          tail = (uint16_t)((tail + dmaLen) % LOG_RING); /* the ring's transfer is complete */
+         sentCount += dmaLen;
+      }
       /* else Terminal's send aborted the ring's transfer: that piece goes again */
       dmaLen = 0;
    }
@@ -183,6 +189,7 @@ static inline void ringPut(uint8_t c)
    h = head;
 #endif
    ring[h] = c;
+   putCount++;
 #ifdef SERIALRING_HOST_TEST
    hostRecordByte(c); /* the host test records what goes into the ring */
 #endif
@@ -213,6 +220,8 @@ static void commitMainLine(LineBuf* lb)
    {
       uint32_t old = maskLog();
       uint8_t done = ringWrite(lb->buf, lb->len, RING_LIMIT);
+      if (done)
+         mainPutCount = putCount;
       startDma();
       unmaskLog(old);
       if (done)
@@ -297,6 +306,16 @@ void RingTerminal::Run()
 {
    uint32_t old;
 
+   /* Terminal's own replies mustn't overtake what the main loop printed before them: let that go out first. */
+   while ((int32_t)(sentCount - mainPutCount) < 0 && !interruptsDisabled())
+   {
+      old = maskLog();
+      startDma();
+      unmaskLog(old);
+#ifdef SERIALRING_HOST_TEST
+      hostWaitForRoom(); /* the DMA and the interrupts run */
+#endif
+   }
    terminalBusy = 1;
    Terminal::Run();
    terminalBusy = 0;

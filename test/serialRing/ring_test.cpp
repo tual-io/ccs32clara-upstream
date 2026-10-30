@@ -497,6 +497,7 @@ static int run(unsigned seed, unsigned long ops)
                if (uartMax == 0)
                   uartMax = 1; /* Terminal's wait needs the UART to run */
                queuedReply = replies[rng() % 4];
+               waitSteps = 0;
                term->Run(); /* Terminal sends it from its Run, as it does */
                continue;
             }
