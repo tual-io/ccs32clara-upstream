@@ -7,6 +7,7 @@
 *.d
 *.o
 *.su
+*.ci
 linker.map
 stm32_ccs
 stm32_ccs.bin
