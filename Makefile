@@ -58,6 +58,25 @@ OBJSL		  = main.o hwinit.o stm32scheduler.o params.o terminal.o terminal_prj.o \
 				 BitInputStream.o dinEXIDatatypesEncoder.o MethodsBag.o \
 				 BitOutputStream.o dinEXIDatatypes.o projectExiConnector.o
 
+# Optional features. The default build is DIN 70121 only, as before.
+#   make ISO1=1            adds the ISO 15118-2:2013 codec (iso1). Phase 0: linked, not used yet (doc/iso15118-2.md).
+#   make SHARED_EXI_DOC=1  one EXI document for the encoder and the decoder instead of two (saves RAM, but see
+#                          doc/iso15118-2.md: the DIN state machine isn't ready for it yet).
+#   make EXTRAFLAGS=...    extra compiler flags, e.g. "-fstack-usage -fcallgraph-info=su" for tools/stack_report.py
+ISO1           ?= 0
+SHARED_EXI_DOC ?= 0
+EXTRAFLAGS     ?=
+CONFIGURATIONFLAGS =
+ifeq ($(ISO1),1)
+CONFIGURATIONFLAGS += -DUSE_ISO1
+OBJSL       += iso1EXIDatatypesDecoder.o iso1EXIDatatypesEncoder.o iso1EXIDatatypes.o
+endif
+ifeq ($(SHARED_EXI_DOC),1)
+CONFIGURATIONFLAGS += -DUSE_SAME_DOC_FOR_ENCODER_AND_DECODER
+endif
+CFLAGS      += $(CONFIGURATIONFLAGS) $(EXTRAFLAGS)
+CPPFLAGS    += $(CONFIGURATIONFLAGS) $(EXTRAFLAGS)
+
 ifneq ($(filter ReleaseQCAFlash,$(MAKECMDGOALS)),)
 CFLAGS      += -Iplcboot -DENABLE_PLCBOOT
 CPPFLAGS    += -Iplcboot -DENABLE_PLCBOOT
