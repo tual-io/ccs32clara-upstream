@@ -29,7 +29,6 @@ static uint8_t UdpRequestLen;
 static uint8_t* UdpRequest = &IpRequest[40];
 static uint8_t v2gtpFrameLen;
 static uint8_t* v2gtpFrame = &UdpRequest[8];
-static uint8_t sdpTlsOnly; /* the charger answered the SDP request with TLS only, which we don't support */
 
 /*** local function prototypes ******************************************/
 void ipv6_packRequestIntoEthernet(void);
@@ -39,14 +38,6 @@ void evaluateNeighborSolicitation(void);
 
 
 /*** functions **********************************************************/
-
-uint8_t ipv6_isChargerTlsOnly(void) {
-   return sdpTlsOnly;
-}
-
-void ipv6_clearChargerTlsOnly(void) {
-   sdpTlsOnly = 0;
-}
 
 void evaluateUdpPayload(void) {
    uint16_t v2gptPayloadType;
@@ -74,21 +65,13 @@ void evaluateUdpPayload(void) {
                }
                addToTrace(MOD_SDP, "[SDP] Checkpoint203: Received SDP response");
                setCheckpoint(203);
-               /* We asked for no TLS (0x10) over TCP (0x00). A charger that answers with TLS (0x00) only offers TLS, which
-                  we don't support: opening plain TCP would only run into the charger's timeout. Stop instead, until the
-                  link goes down (ipv6_clearChargerTlsOnly). */
+               /* We asked for no TLS (0x10) over TCP (0x00). DIN 70121 has no TLS, and a DIN charger that answers with
+                  TLS (0x00) by mistake may still accept plain TCP, so we only report it and go on with plain TCP. */
                if (sdp.security == V2GTP_SDP_SECURITY_TLS) {
-                  if (!sdpTlsOnly) {
-                     addToTrace(MOD_SDP, "[SDP] The charger only offers TLS, which is not supported. Stopping.");
-                     publishStatus("Charger needs TLS", "");
-                     Param::SetInt(Param::StopReason, STOP_REASON_CHARGER_REQUIRES_TLS);
-                  }
-                  sdpTlsOnly = 1;
-                  return;
+                  addToTrace(MOD_SDP, "[SDP] The charger answered with TLS, which is not supported. Trying plain TCP.");
                }
                if (sdp.transport != V2GTP_SDP_TRANSPORT_TCP) {
-                  addToTrace(MOD_SDP, "[SDP] Ignoring SDP response, because the transport protocol is not TCP.");
-                  return;
+                  addToTrace(MOD_SDP, "[SDP] The charger answered with a transport protocol other than TCP. Trying TCP.");
                }
                for (i=0; i<16; i++) {
                   SeccIp[i] = sdp.seccIp[i]; // 16 bytes IP address of the charger

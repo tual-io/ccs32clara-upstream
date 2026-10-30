@@ -9,10 +9,14 @@ all: run
 v2gtp_test: v2gtp_test.cpp ../../ccs/v2gtp.cpp ../../ccs/v2gtp.h
 	$(CXX) $(CXXFLAGS) -o $@ v2gtp_test.cpp ../../ccs/v2gtp.cpp
 
-run: v2gtp_test
+qcaframe_test: qcaframe_test.cpp ../../ccs/qcaframe.cpp ../../ccs/qcaframe.h
+	$(CXX) $(CXXFLAGS) -o $@ qcaframe_test.cpp ../../ccs/qcaframe.cpp
+
+run: v2gtp_test qcaframe_test
 	./v2gtp_test
+	./qcaframe_test
 
 clean:
-	rm -f v2gtp_test
+	rm -f v2gtp_test qcaframe_test
 
 .PHONY: all run clean
