@@ -544,6 +544,14 @@ static int run(unsigned seed, unsigned long ops)
    uartMax = 8;
    while (pendingPos < pending.size())
       mainPutChar(pending[pendingPos++]);
+   if (terminalBusy)
+   {
+      /* a json reply was under way: its command ends, Terminal::Run returns */
+      terminalBusy = 0;
+      uint32_t old = maskLog();
+      startDma();
+      unmaskLog(old);
+   }
    for (int round = 0; round < 3; round++)
    {
       for (int i = 0; i < 10000000 && (head != tail || dma.cndtr != 0); i++)
