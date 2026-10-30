@@ -29,9 +29,11 @@
      on.
    - While the main loop is in Terminal::Run, where Terminal sends, interrupt context doesn't start or chain ring
      transfers (see Run), so it can't get between Terminal's wait and its programming of the channel, and Terminal
-     isn't kept waiting by a busy ring.
+     isn't kept waiting by a busy ring. One exception: the DMA interrupt goes on with a line that a transfer ending at
+     the ring's end has split, so that Terminal's reply can't land inside it.
    What remains: the terminal's echo of typed characters (usart_send_blocking, not DMA) still goes straight to the
-   UART and can land inside a line, as before.
+   UART and can land inside a line, as before. A reply of Terminal's can land between two pieces of an interrupt's line
+   longer than LINE_LEN, if the ring runs dry between them.
 
    Masking. The ring is shared by the main loop, the scheduler's interrupt (priority 0xE0) and this DMA interrupt
    (0xD0). Writers raise BASEPRI to 0xD0 while they copy a line into the ring (a few us), which holds off every
@@ -304,7 +306,7 @@ RingTerminal::RingTerminal(uint32_t usart, const TERM_CMD* commands)
 
 /* Terminal sends itself only from Terminal::Run (its replies, and the commands it calls). While it runs, only the main
    loop, which is where Terminal runs, starts the ring: interrupt context neither starts a transfer nor chains the next
-   one. So Terminal and the ring never program the channel over each other, and when Terminal waits for TCIF the ring
+   one (but for the rest of a line split at the ring's end, see the DMA interrupt). So Terminal and the ring never program the channel over each other, and when Terminal waits for TCIF the ring
    lets it go after its current transfer, however much the interrupts print meanwhile (they fill the ring, and drop as
    usual when it is full). Afterwards the main loop starts the ring again. Terminal::Run returns at once when nothing
    was typed, so outside a command the ring is held back for microseconds. */
